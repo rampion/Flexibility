@@ -59,7 +59,21 @@ describe Flexibility do
   end
 
   shared_examples_for '::CallbackGenerators#validate' do
-    it "returns a proc that runs the given callback on the inital value"
+    it "returns a proc that returns the initial argument if the block returns truthy on it" do
+      expect( validate { true }[ 7 ] ).to eq( 7 )
+      expect( validate { true }[ nil ] ).to be( nil )
+      expect( validate { true }[ false ] ).to eq( false )
+    end
+    it "returns a proc that raises an error if the block returns falsy on the initial argument" do
+      expect{ validate { false }[ 7 ] }.to raise_error(ArgumentError)
+      expect{ validate { false }[ nil ] }.to raise_error(ArgumentError)
+      expect{ validate { false }[ false ] }.to raise_error(ArgumentError)
+    end
+    it "returns a proc that passes all its arguments to the given block" do
+      _ = self
+      validate { |*args| _.expect(args).to _.eq([]) ; true }[] 
+      validate { |*args| _.expect(args).to _.eq([1,2,3,4,5,6]) ; true }[1,2,3,4,5,6] 
+    end
   end
 
   shared_examples_for '::InstanceMethods#options' do

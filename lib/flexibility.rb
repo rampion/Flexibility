@@ -20,8 +20,9 @@ module Flexibility
       end
     end
     def validate
-      lambda do |val, key, opts, orig|
-        unless yield(val, key, opts) 
+      proc do |*args|
+        val, key, opts, orig = *args
+        unless yield(*args) 
           raise(ArgumentError.new "Invalid value #{orig.inspect} given for argument #{key.inspect}", caller)
         end
         val
