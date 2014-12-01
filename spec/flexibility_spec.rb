@@ -259,11 +259,10 @@ describe Flexibility do
       it_behaves_like "::InstanceMethods#options"
       it "calls each proc with the proper value of self" do
         ix = 0
-        spec = self
+        _ = self
         callback = proc do |val,_key,_partial,orig|
-          _self = self
           ix += 1
-          spec.instance_eval { expect(_self).to eq(instance) }
+          _.expect( self ).to _.eq( _.instance )
           true
         end
 
