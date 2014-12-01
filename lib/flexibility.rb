@@ -3,7 +3,7 @@ module Flexibility
   module CallbackGenerators
     def default(*args,&blk)
       if args.length != (blk ? 0 : 1)
-        raise ArgumentError.new("Wrong number of arguments to `default` (expects 0 with a block, or 1 without)", caller)
+        raise(ArgumentError, "Wrong number of arguments to `default` (expects 0 with a block, or 1 without)", caller)
       elsif blk
         proc { |val, *args| val.nil? ? instance_exec(*args,&blk) : val }
       else
@@ -14,16 +14,16 @@ module Flexibility
     def required
       proc do |val,key|
         if val.nil?
-          raise(ArgumentError.new "Required argument #{key.inspect} not given", caller)
+          raise(ArgumentError, "Required argument #{key.inspect} not given", caller)
         end
         val
       end
     end
     def validate
       proc do |*args|
-        val, key, opts, orig = *args
+        val, key, _opts, orig = *args
         unless yield(*args) 
-          raise(ArgumentError.new "Invalid value #{orig.inspect} given for argument #{key.inspect}", caller)
+          raise(ArgumentError, "Invalid value #{orig.inspect} given for argument #{key.inspect}", caller)
         end
         val
       end
@@ -39,7 +39,7 @@ module Flexibility
       # let the caller bundle arguments in a trailing Hash
       trailing_opts = Hash === given.last ? given.pop : {}
       unless expected.length >= given.length
-        raise(ArgumentError.new "Got #{given.length} arguments, but only know how to handle #{expected.length}")
+        raise(ArgumentError, "Got #{given.length} arguments, but only know how to handle #{expected.length}", caller)
       end
       exec = if self == Flexibility 
                proc { |*args,&blk| blk[*args] }
@@ -64,20 +64,19 @@ module Flexibility
 
   module ClassInstanceMethods
     # private class instance methods?
-    def define method_name, expected, &blk
-      if blk.arity < 0
-        # TODO
-        raise(NotImplementedError.new "Flexibility doesn't support splats in method definitions yet, sorry!")
-      elsif blk.arity > expected.length + 1
-        raise(ArgumentError.new "More positional arguments in method body than specified in expected arguments")
+    def define method_name, expected, &method_body
+      if method_body.arity < 0
+        raise(NotImplementedError, "Flexibility doesn't support splats in method definitions yet, sorry!", caller)
+      elsif method_body.arity > expected.length + 1
+        raise(ArgumentError, "More positional arguments in method body than specified in expected arguments", caller)
       end
 
       # assume all but the last block argument should capture positional
       # arguments
-      keys = expected.keys[ 0 ... blk.arity - 1]
+      keys = expected.keys[ 0 ... method_body.arity - 1]
       define_method(method_name) do |*given| 
         opts = options(given, expected)
-        instance_exec(*keys.map { |key| opts.delete key }, opts, &blk)
+        instance_exec(*keys.map { |key| opts.delete key }, opts, &method_body)
       end
     end
   end
@@ -86,10 +85,14 @@ module Flexibility
     def append_features(target)
       eigenclass = class<<target;self;end
 
+      # use #options in method bodies
       copy_methods( target, InstanceMethods, true )
+      # use #define in class body
+      copy_methods( eigenclass, CallbackGenerators, true )
+
+      # use #transform, #validate, etc with either #options or #define
       copy_methods( target, CallbackGenerators, true )
       copy_methods( eigenclass, ClassInstanceMethods, true )
-      copy_methods( eigenclass, CallbackGenerators, true )
     end
     private
     def copy_methods(dst, src, as_private)
