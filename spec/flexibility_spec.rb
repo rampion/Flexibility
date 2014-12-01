@@ -208,6 +208,28 @@ describe Flexibility do
         )
       end.to raise_error( ArgumentError )
     end
+    it "calls each proc with the proper value of self" do
+      ix = 0
+      _ = self
+      callback = proc do |val,_key,_partial,orig|
+        ix += 1
+        _.expect( self ).to _.eq( _.instance )
+        true
+      end
+
+      expect(options(
+        ["one", "two", "three"], 
+        foo: [ callback, callback ],
+        bar: [ callback, callback ],
+        baz: callback
+      )).to eq(
+        foo: true,
+        bar: true,
+        baz: true
+      )
+
+      expect(ix).to eq(5)
+    end
   end
 
   shared_examples_for '::ClassMethods#define' do
@@ -306,28 +328,6 @@ describe Flexibility do
     describe '#options' do
       expose :instance, :options
       it_behaves_like "::InstanceMethods#options"
-      it "calls each proc with the proper value of self" do
-        ix = 0
-        _ = self
-        callback = proc do |val,_key,_partial,orig|
-          ix += 1
-          _.expect( self ).to _.eq( _.instance )
-          true
-        end
-
-        expect(options(
-          ["one", "two", "three"], 
-          foo: [ callback, callback ],
-          bar: [ callback, callback ],
-          baz: callback
-        )).to eq(
-          foo: true,
-          bar: true,
-          baz: true
-        )
-
-        expect(ix).to eq(5)
-      end
     end
 
     describe "::define" do
