@@ -184,6 +184,16 @@ describe Flexibility do
 
       expect(ix).to eq(5)
     end
+    it "raises an error if the array-of-values is longer than the hash-of-procs" do
+      expect do
+        options(
+          ["one", "two", "three", "four", "five"], 
+          foo: tag[:first], 
+          bar: tag[:second], 
+          baz: tag[:third]
+        )
+      end.to raise_error( ArgumentError )
+    end
   end
 
   describe "when included" do

@@ -38,6 +38,9 @@ module Flexibility
     def options(given, expected)
       # let the caller bundle arguments in a trailing Hash
       trailing_opts = Hash === given.last ? given.pop : {}
+      unless expected.length >= given.length
+        raise(ArgumentError.new "Got #{given.length} arguments, but only know how to handle #{expected.length}")
+      end
       exec = if self == Flexibility 
                proc { |*args,&blk| blk[*args] }
              else
