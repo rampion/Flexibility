@@ -41,20 +41,22 @@ module Flexibility
       unless expected.length >= given.length
         raise(ArgumentError, "Got #{given.length} arguments, but only know how to handle #{expected.length}", caller)
       end
-      exec = if self == Flexibility 
-               proc { |*args,&blk| blk[*args] }
-             else
-               method(:instance_exec)
-             end
               
       opts = {}
-      expected.each.with_index do |(key, cb), i|
+      expected.each.with_index do |(key, cbs), i|
         # check positional argument for value first, then default to trailing options
-        found   = i < given.length ? given[i] : trailing_opts[key]
+        found = i < given.length ? given[i] : trailing_opts[key]
 
-        case cb
-        when Proc   ; opts[key] = exec[found, key, opts, found, &cb]
-        when Array  ; opts[key] = cb.inject(found) { |val, p| exec[val, key, opts, found, &p] }
+        # take either a single callback or a collection
+        cbs = [ cbs ] unless cbs.respond_to? :inject
+
+        # run every callback, threading the results through each
+        opts[key] = cbs.inject(found) do |val, cb|
+          unless cb.respond_to? :to_proc
+            raise(ArgumentError, "Unrecognized expectation #{cb.inspect} for #{key.inspect}, expecting something that responds to #to_proc", caller)
+          else
+            instance_exec( val, key, opts, found, &cb )
+          end
         end
       end
 

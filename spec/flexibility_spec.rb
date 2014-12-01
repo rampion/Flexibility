@@ -230,6 +230,26 @@ describe Flexibility do
 
       expect(ix).to eq(5)
     end
+    it "allows you to substitute anything responding to #to_proc for the procs" do
+      one   = double('one')
+      one_  = double('one_')
+      one__ = double('one__')
+      two   = double('two')
+      two_  = double('two_')
+
+      expect(one).to receive(:first).and_return(one_)
+      expect(one_).to receive(:second).and_return(one__)
+      expect(two).to receive(:third).and_return(two_)
+
+      expect(options(
+        [one, two], 
+        foo: [ :first, :second ],
+        baz: :third
+      )).to eq(
+        foo: one__,
+        baz: two_
+      )
+    end
   end
 
   shared_examples_for '::ClassMethods#define' do
@@ -298,8 +318,8 @@ describe Flexibility do
   end
 
   describe "when included" do
-    let (:klass) { Class.new { include Flexibility } }
-    let (:instance) { klass.new }
+    let (:klass) { Class.new { include Flexibility ; def self.inspect ; "#<klass>" ; end } }
+    let (:instance) { klass.new.instance_eval { def inspect ; "#<instance>" ; end ; self }  }
 
     describe '::transform' do
       expose :klass, :transform
