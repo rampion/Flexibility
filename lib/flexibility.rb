@@ -95,9 +95,4 @@ module Flexibility
       end
     end
   end
-
-  eigenclass = class<<self;self;end
-  copy_methods( eigenclass, InstanceMethods, false )
-  copy_methods( eigenclass, ClassInstanceMethods, false )
-  copy_methods( eigenclass, CallbackGenerators, false )
 end

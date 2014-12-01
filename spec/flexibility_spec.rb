@@ -186,53 +186,6 @@ describe Flexibility do
     end
   end
 
-  describe '::transform' do
-    expose Flexibility, :transform
-    it_behaves_like "::CallbackGenerators#transform"
-  end
-
-  describe '::default' do
-    expose Flexibility, :default
-    it_behaves_like "::CallbackGenerators#default"
-  end
-
-  describe '::required' do
-    expose Flexibility, :required
-    it_behaves_like "::CallbackGenerators#required"
-  end
-
-  describe '::validate' do
-    expose Flexibility, :validate
-    it_behaves_like "::CallbackGenerators#validate"
-  end
-
-  describe '::options' do
-    expose Flexibility, :options
-    it_behaves_like "::InstanceMethods#options"
-    it "doesn't change the value of self in the procs" do
-      ix = 0
-      _ = self
-      callback = proc do |val,_key,_partial,orig|
-        ix += 1
-        _.expect(self).to _.be(_)
-        true
-      end
-
-      expect(options(
-        ["one", "two", "three"], 
-        foo: [ callback, callback ],
-        bar: [ callback, callback ],
-        baz: callback
-      )).to eq(
-        foo: true,
-        bar: true,
-        baz: true
-      )
-
-      expect(ix).to eq(5)
-    end
-  end
-
   describe "when included" do
     let (:klass) { Class.new { include Flexibility } }
     let (:instance) { klass.new }
