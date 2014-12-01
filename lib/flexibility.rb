@@ -31,7 +31,6 @@ module Flexibility
     def transform(&blk)
       blk
     end
-    # matches for ===
   end
 
   module InstanceMethods
