@@ -279,6 +279,22 @@ describe Flexibility do
     it "raises an error if the method body uses too many arguments" do
       expect { define(:foo, {}) { |a,b,c,opts| } }.to raise_error(ArgumentError)
     end
+    it "allows the method body to access a passed block using &" do
+      run = false
+      define(:foo, {}) { |&blk| blk[5] }
+      instance.foo { |n| expect(n).to eq(5) ; run = true}
+      expect(run).to be(true)
+    end
+
+    # Not possible, according to
+    # https://banisterfiend.wordpress.com/2010/11/06/behavior-of-yield-in-define_method/
+    it "allows the method body to access a passed block using yield", impossible: true do
+      run = false
+      define(:foo, {}) { yield 5 }
+      instance.foo { |n| expect(n).to eq(5) ; run = true}
+      expect(run).to be(true)
+    end
+
   end
 
   describe "when included" do

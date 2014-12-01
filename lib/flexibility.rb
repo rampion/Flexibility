@@ -71,12 +71,27 @@ module Flexibility
         raise(ArgumentError, "More positional arguments in method body than specified in expected arguments", caller)
       end
 
+      # create an UnboundMethod from method_body so we can
+      # 1. set `self`
+      # 2. pass it arguments
+      # 3. pass it a block
+      #
+      # `instance_eval` only allows us to do (1), whereas `instance_exec` only
+      # allows (1) and (2).
+      define_method(method_name, &method_body)
+      method_impl = instance_method(method_name)
+
       # assume all but the last block argument should capture positional
       # arguments
-      keys = expected.keys[ 0 ... method_body.arity - 1]
-      define_method(method_name) do |*given| 
+      keys = expected.keys[ 0 ... method_impl.arity - 1]
+
+      # interpret user arguments using #options, then pass them to the method
+      # body
+      define_method(method_name) do |*given, &blk|
         opts = options(given, expected)
-        instance_exec(*keys.map { |key| opts.delete key }, opts, &method_body)
+        method_impl.bind(self).call(
+          *keys.map { |key| opts.delete key }.push( opts ).take( method_impl.arity ), &blk
+        )
       end
     end
   end
