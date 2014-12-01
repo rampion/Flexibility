@@ -67,49 +67,49 @@ describe Flexibility do
     it 'applies a hash-of-procs to a array-of-values to get a hash-of-results' do
       expect(options(
         ["one", "two", "three"], 
-        foo: tag[:foo], 
-        bar: tag[:bar], 
-        baz: tag[:baz]
+        foo: tag[:first], 
+        bar: tag[:second], 
+        baz: tag[:third]
       )).to eq( 
-        foo: [:foo, "one"],
-        bar: [:bar, "two"],
-        baz: [:baz, "three"]
+        foo: [:first, "one"],
+        bar: [:second, "two"],
+        baz: [:third, "three"]
       )
     end
     it 'applies the values from a trailing hash in an array-of-values with to their corresponding procs' do
       expect(options(
         [ "one", { bar: "two", baz: "three" } ], 
-        foo: tag[:foo], 
-        bar: tag[:bar], 
-        baz: tag[:baz]
+        foo: tag[:first], 
+        bar: tag[:second], 
+        baz: tag[:third]
       )).to eq( 
-        foo: [:foo, "one"],
-        bar: [:bar, "two"],
-        baz: [:baz, "three"]
+        foo: [:first, "one"],
+        bar: [:second, "two"],
+        baz: [:third, "three"]
       )
     end
     it "applies the procs from a hash-of-array-of-procs in order to the given value" do
       expect(options(
         ["one", "two", "three"], 
-        foo: [ tag[:foo1], tag[:foo2], tag[:foo3] ],
-        bar: [ tag[:bar] ],
-        baz: tag[:baz]
+        foo: [ tag[:first1], tag[:first2], tag[:first3] ],
+        bar: [ tag[:second] ],
+        baz: tag[:third]
       )).to eq( 
-        foo: [ :foo3, [ :foo2, [:foo1, "one"] ] ],
-        bar: [:bar, "two"],
-        baz: [:baz, "three"]
+        foo: [:first3, [:first2, [:first1, "one"]]],
+        bar: [:second, "two"],
+        baz: [:third, "three"]
       )
     end
     it "calls the procs that don't have a corresponding value" do
       expect(options(
         ["one"], 
-        foo: tag[:foo], 
-        bar: tag[:bar], 
-        baz: tag[:baz]
+        foo: tag[:first], 
+        bar: tag[:second], 
+        baz: tag[:third]
       )).to eq( 
-        foo: [:foo, "one"],
-        bar: [:bar, nil],
-        baz: [:baz, nil]
+        foo: [:first, "one"],
+        bar: [:second, nil],
+        baz: [:third, nil]
       )
     end
     it "calls each proc with its key" do
