@@ -210,9 +210,22 @@ describe Flexibility do
     end
   end
 
+  shared_examples_for '::ClassMethods#define' do
+    it "creates a new instance method"
+    it "passes the given arguments through #options"
+    it "passes all n arguments to the method body as a hash if the method body takes 1 argument"
+    it "passes all n arguments to the method body positionally if the method body takes n+1 arguments"
+    it "passes the first k arguments to the method body positionally if the method body takes 1 < k <= n arguments"
+  end
+
   describe "when included" do
     let (:klass) { Class.new { include Flexibility } }
     let (:instance) { klass.new }
+
+    describe "::define" do
+      expose :klass, :define
+      it_behaves_like "::ClassMethods#define"
+    end
 
     describe '::transform' do
       expose :klass, :transform
