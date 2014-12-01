@@ -211,21 +211,57 @@ describe Flexibility do
   end
 
   shared_examples_for '::ClassMethods#define' do
-    it "creates a new instance method"
-    it "passes the given arguments through #options"
-    it "passes all n arguments to the method body as a hash if the method body takes 1 argument"
-    it "passes all n arguments to the method body positionally if the method body takes n+1 arguments"
-    it "passes the first k arguments to the method body positionally if the method body takes 1 < k <= n arguments"
+    it "creates a new instance method" do
+      define(:foo, {}) {}
+      expect( klass.instance_methods ).to include(:foo)
+    end
+    it "creates a method which passes the given arguments through #options" do
+      define(:foo, { a: [] }) {}
+      expect( instance ).to receive(:options).with( [1], { a: [] } )
+      instance.foo(1)
+    end
+    it "binds the method body to the receiver" do
+      _ = self
+      define(:foo, { a: [] }) { _.expect(self).to _.be(_.instance) }
+      instance.foo
+    end
+    it "passes all n arguments to the method body as a hash if the method body takes 1 argument" do
+      _ = self
+      define(:foo, { a: [], b: [], c: [] }) do |opts|
+        _.expect( opts ).to _.eq({ a: 1, b: 2, c: 3 })
+      end
+      instance.foo(1,2,3)
+    end
+    it "passes all n arguments to the method body positionally if the method body takes n+1 arguments" do
+      _ = self
+      define(:foo, { a: [], b: [], c: [] }) do |a,b,c,opts|
+        _.expect( a ).to _.eq( 1 )
+        _.expect( b ).to _.eq( 2 )
+        _.expect( c ).to _.eq( 3 )
+        _.expect( opts ).to _.eq({})
+      end
+      instance.foo(1,2,3)
+    end
+    it "passes the first k arguments to the method body positionally if the method body takes 1 < k <= n arguments" do
+      _ = self
+      define(:foo, { a: [], b: [], c: [], d: []  }) do |a,b,opts|
+        _.expect( a ).to _.eq( 1 )
+        _.expect( b ).to _.eq( 2 )
+        _.expect( opts ).to _.eq({ c: 3, d: 4 })
+      end
+      instance.foo(1,2,3,4)
+    end
+    it "raises an error if the method body uses a splat" do
+      expect { define(:foo, {}) { |*as| } }.to raise_error(NotImplementedError)
+    end
+    it "raises an error if the method body uses too many arguments" do
+      expect { define(:foo, {}) { |a,b,c,opts| } }.to raise_error(ArgumentError)
+    end
   end
 
   describe "when included" do
     let (:klass) { Class.new { include Flexibility } }
     let (:instance) { klass.new }
-
-    describe "::define" do
-      expose :klass, :define
-      it_behaves_like "::ClassMethods#define"
-    end
 
     describe '::transform' do
       expose :klass, :transform
@@ -292,6 +328,11 @@ describe Flexibility do
 
         expect(ix).to eq(5)
       end
+    end
+
+    describe "::define" do
+      expose :klass, :define
+      it_behaves_like "::ClassMethods#define"
     end
   end
 end

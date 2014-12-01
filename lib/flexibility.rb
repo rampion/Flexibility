@@ -65,17 +65,20 @@ module Flexibility
   module ClassInstanceMethods
     # private class instance methods?
     def define method_name, expected, &blk
-      with_opts = if blk.arity == 0 
-                    blk
-                  elsif blk.arity < 0 or blk.arity == expected.length
-                    lambda { |opts| blk[ *opts.values ] }
-                  else
-                    keys = expected.keys[ 0 ... blk.arity ]
-                    lambda { |opts| blk[ opts.values_at(*keys), opts ] }
-                  end
+      if blk.arity < 0
+        # TODO
+        raise(NotImplementedError.new "Flexibility doesn't support splats in method definitions yet, sorry!")
+      elsif blk.arity > expected.length + 1
+        raise(ArgumentError.new "More positional arguments in method body than specified in expected arguments")
+      end
 
-      # TODO: if has_method(options)? to handle Flexibility.define
-      define_method(method_name) { |*given| with_opts[options(given, expected)] }
+      # assume all but the last block argument should capture positional
+      # arguments
+      keys = expected.keys[ 0 ... blk.arity - 1]
+      define_method(method_name) do |*given| 
+        opts = options(given, expected)
+        instance_exec(*keys.map { |key| opts.delete key }, opts, &blk)
+      end
     end
   end
 
