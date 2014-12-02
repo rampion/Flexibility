@@ -1,4 +1,4 @@
-require File.join(  File.dirname( __FILE__ ), '..', 'lib', 'flexibility' )
+require_relative '../../lib/flexibility'
 
 describe Flexibility do
   # make `method` available to be called w/o an explicit receiver
