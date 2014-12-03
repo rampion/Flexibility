@@ -23,22 +23,33 @@ describe Flexibility do
   end
 
   describe '#default' do
+    def call meth, *args, &blk
+      Flexibility::GET_UNBOUND_METHOD[klass, meth].bind(instance).call(*args, &blk)
+    end
     describe "when called with a block, returns a proc which" do
       it "returns any non-nil value given it as initial argument without calling the block" do
         ix = 0
-        expect(klass.default { ix += 1 }.call(7)).to eq(7)
-        expect(klass.default { ix += 1 }.call(false)).to eq(false)
+        expect( call( klass.default { ix += 1 }, 7) ).to eq(7)
+        expect( call( klass.default { ix += 1 }, false) ).to eq(false)
         expect(ix).to eq(0)
       end
       it "calls the block with the other arguments when given nil as initial argument" do
         _ = self
-        expect(klass.default { |*args| _.expect(args).to _.eq([]); 5 }.call()).to eq(5)
-        expect(klass.default { |*args| _.expect(args).to _.eq([1,2,3]); 5 }.call(nil,1,2,3)).to eq(5)
+        check_args = lambda do |*expected|
+          lambda { |*actual| _.expect(actual).to _.eq(expected); 5 }
+        end
+        expect( call( klass.default(&check_args[]), nil ) ).to eq(5)
+        expect( call( klass.default(&check_args[1,2,3]), nil, 1, 2, 3) ).to eq(5)
+      end
+      it "calls the original block with whatever block is given at call time" do
+        _ = self
+        expect( call( klass.default { |*args,&blk| nil }, nil) ).to eq(nil)
+        expect( call( klass.default { |*args,&blk| blk[] }, nil) { :foo }).to eq(:foo)
       end
       it "binds the block to whatever object the return proc is bound to" do
         p = klass.default { self }
-        expect( 5.instance_exec(&p) ).to eq(5)
-        expect( :foo.instance_exec(nil,1,2,3,&p) ).to eq(:foo)
+        expect( call(p, nil) ).to eq(instance)
+        expect( call(p, nil,1,2,3) ).to eq(instance)
       end
     end
     describe "when called with a single argument, returns a proc which" do

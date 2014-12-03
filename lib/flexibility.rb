@@ -111,6 +111,19 @@
 # more acceptable form.
 module Flexibility
 
+  # helper for creating UnboundMethods
+  count = 0
+  GET_UNBOUND_METHOD = lambda do |klass, body|
+    klass.class_eval do
+      name = "#unbound_method_#{count += 1}"
+      define_method(name, &body)
+      um = instance_method(name)
+      remove_method(name)
+      um
+    end
+  end
+
+
   # `#default` allows you to specify a default value for an argument.
   #
   # You can pass `#default` either
@@ -130,9 +143,9 @@ module Flexibility
   #       include Flexibility
   #
   #       define :dimensions, {
-  #         depth:  default( 1 ),
-  #         width:  default{ @width },
-  #         height: default { |_key,opts| opts[:width] } ,
+  #         depth:    default( 1 ),
+  #         width:    default { @width },
+  #         height:   default { |_key,opts| opts[:width] } ,
   #         duration: default { |&blk| blk[] if blk }
   #       } do |opts|
   #         opts
@@ -143,7 +156,7 @@ module Flexibility
   #       end
   #     end
   #
-  # We can run it with 0, 1, 2, or 3 arguments:
+  # We can specify (or not) any of the arguments to see the defaults in action
   #
   #     irb> banner = Banner.new
   #     irb> banner.dimensions
@@ -155,11 +168,12 @@ module Flexibility
   #     => { depth: 1, width: 10, height: 10, duration: 12 }
   #
   #
-  def default(*args,&blk)
-    if args.length != (blk ? 0 : 1)
+  def default(*args,&cb)
+    if args.length != (cb ? 0 : 1)
       raise(ArgumentError, "Wrong number of arguments to `default` (expects 0 with a block, or 1 without)", caller)
-    elsif blk
-      proc { |val, *args| val.nil? ? instance_exec(*args,&blk) : val }
+    elsif cb
+      um = GET_UNBOUND_METHOD[self, cb]
+      proc { |val, *args, &blk| val.nil? ? um.bind(self).call(*args.take(um.arity < 0 ? args.length : um.arity),&blk) : val }
     else
       default = args.first
       proc { |val| val.nil? ? default : val }
@@ -194,12 +208,6 @@ module Flexibility
       raise(ArgumentError, "More positional arguments in method body than specified in expected arguments", caller)
     end
     
-    # helper for creating UnboundMethods
-    unbound_method = lambda do |name, body|
-      define_method(name, &body)
-      instance_method(name)
-    end
-
     # create an UnboundMethod from method_body so we can
     # 1. set `self`
     # 2. pass it arguments
@@ -207,7 +215,7 @@ module Flexibility
     #
     # `instance_eval` only allows us to do (1), whereas `instance_exec` only
     # allows (1) and (2).
-    method_um = unbound_method["#{method_name}#body", method_body]
+    method_um = GET_UNBOUND_METHOD[self, method_body]
 
     # similarly, create UnboundMethods from the callbacks
     expected_ums = {}
@@ -217,10 +225,12 @@ module Flexibility
       cbs = [cbs] unless cbs.respond_to? :inject
 
       expected_ums[key] = cbs.map.with_index do |cb, index|
-        unless cb.respond_to? :to_proc
-          raise(ArgumentError, "Unrecognized expectation #{cb.inspect} for #{key.inspect}, expecting something that responds to #to_proc", caller)
+        if UnboundMethod === cb
+          cb
+        elsif cb.respond_to? :to_proc
+          GET_UNBOUND_METHOD[self, cb]
         else
-          unbound_method["#{method_name}###{key}##{index}", cb]
+          raise(ArgumentError, "Unrecognized expectation #{cb.inspect} for #{key.inspect}, expecting an UnboundMethod or something that responds to #to_proc", caller)
         end
       end
     end
