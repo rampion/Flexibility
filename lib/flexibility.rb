@@ -145,6 +145,10 @@ module Flexibility
     #       } do |opts|
     #         opts
     #       end
+    #
+    #       def initialize
+    #         @width = 40
+    #       end
     #     end
     #
     # We can run it with 0, 1, 2, or 3 arguments:
