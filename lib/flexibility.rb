@@ -54,18 +54,17 @@
 # Now
 #
 #     class Banner
-#       def box(*args)
-#         width, height, symbol = options(args,
-#           width:  [
-#             default { @width },
-#             validate { |n| n >= 1 }
-#           ],
-#           height: [
-#             default { |_key,opts| opts[:width] } ,
-#             validate { |n| n >= 2 }
-#           ],
-#           symbol: default('*')
-#         ).values
+#       define :box, {
+#         width:  [
+#           default { @width },
+#           validate { |n| n >= 1 }
+#         ],
+#         height: [
+#           default { |_key,opts| opts[:width] } ,
+#           validate { |n| n >= 2 }
+#         ],
+#         symbol: default('*')
+#       } do |width, height, symbol, _unused|
 #
 #         puts "#{symbol * width}"
 #         (height-2).times do
@@ -74,12 +73,6 @@
 #         puts "#{symbol * width}"
 #       end
 #     end
-#
-# When mixed in, `Flexibility` adds the private class method
-# {Flexibility::ClassInstanceMethods#define ::define} to define methods that
-# take a mix of positional and keyword arguments and the the private instance
-# method {Flexibility::InstanceMethods#options #options} to convert a collection
-# of mixed positional and keyword arguments to a Hash.
 #
 # We can call `Banner#show` and `Banner#box` with positional and keyword
 # arguments:
@@ -195,37 +188,6 @@ module Flexibility
     end
   end
 
-  module InstanceMethods
-    # private instance method?
-    def options(given, expected)
-      # let the caller bundle arguments in a trailing Hash
-      trailing_opts = Hash === given.last ? given.pop : {}
-      unless expected.length >= given.length
-        raise(ArgumentError, "Got #{given.length} arguments, but only know how to handle #{expected.length}", caller)
-      end
-
-      opts = {}
-      expected.each.with_index do |(key, cbs), i|
-        # check positional argument for value first, then default to trailing options
-        found = i < given.length ? given[i] : trailing_opts[key]
-
-        # take either a single callback or a collection
-        cbs = [ cbs ] unless cbs.respond_to? :inject
-
-        # run every callback, threading the results through each
-        opts[key] = cbs.inject(found) do |val, cb|
-          unless cb.respond_to? :to_proc
-            raise(ArgumentError, "Unrecognized expectation #{cb.inspect} for #{key.inspect}, expecting something that responds to #to_proc", caller)
-          else
-            instance_exec( val, key, opts, found, &cb )
-          end
-        end
-      end
-
-      opts
-    end
-  end
-
   module ClassInstanceMethods
     # private class instance methods?
     def define method_name, expected, &method_body
@@ -302,13 +264,10 @@ module Flexibility
     def append_features(target)
       eigenclass = class<<target;self;end
 
-      # use #options in method bodies
-      copy_methods( target, InstanceMethods, true )
       # use #define in class body
       copy_methods( eigenclass, CallbackGenerators, true )
 
-      # use #transform, #validate, etc with either #options or #define
-      copy_methods( target, CallbackGenerators, true )
+      # use #transform, #validate, etc with #define
       copy_methods( eigenclass, ClassInstanceMethods, true )
     end
     private

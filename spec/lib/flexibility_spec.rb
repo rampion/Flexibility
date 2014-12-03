@@ -327,18 +327,8 @@ describe Flexibility do
       it_behaves_like "::CallbackGenerators#transform"
     end
 
-    describe '#transform' do
-      expose :instance, :transform
-      it_behaves_like "::CallbackGenerators#transform"
-    end
-
     describe '::default' do
       expose :klass, :default
-      it_behaves_like "::CallbackGenerators#default"
-    end
-
-    describe '#default' do
-      expose :instance, :default
       it_behaves_like "::CallbackGenerators#default"
     end
 
@@ -347,24 +337,9 @@ describe Flexibility do
       it_behaves_like "::CallbackGenerators#required"
     end
 
-    describe '#required' do
-      expose :instance, :required
-      it_behaves_like "::CallbackGenerators#required"
-    end
-
     describe '::validate' do
       expose :klass, :validate
       it_behaves_like "::CallbackGenerators#validate"
-    end
-
-    describe '#validate' do
-      expose :instance, :validate
-      it_behaves_like "::CallbackGenerators#validate"
-    end
-
-    describe '#options' do
-      expose :instance, :options
-      it_behaves_like "::InstanceMethods#options"
     end
 
     describe "::define" do
