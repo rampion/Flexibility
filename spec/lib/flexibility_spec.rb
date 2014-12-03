@@ -257,11 +257,6 @@ describe Flexibility do
       define(:foo, {}) {}
       expect( klass.instance_methods ).to include(:foo)
     end
-    it "creates a method which passes the given arguments through #options" do
-      define(:foo, { a: [] }) {}
-      expect( instance ).to receive(:options).with( [1], { a: [] } )
-      instance.foo(1)
-    end
     it "binds the method body to the receiver" do
       _ = self
       define(:foo, { a: [] }) { _.expect(self).to _.be(_.instance) }
@@ -315,6 +310,12 @@ describe Flexibility do
       expect(run).to be(true)
     end
 
+    it "allows the callbacks to access a passed block using &" do
+      run = false
+      define(:foo, { bar: proc { |&blk| blk[] } }) { |opts| opts }
+      expect( instance.foo { run = true ; 5 } ).to eq( bar: 5 )
+      expect(run).to be(true)
+    end
   end
 
   describe "when included" do

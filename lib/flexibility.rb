@@ -234,6 +234,12 @@ module Flexibility
       elsif method_body.arity > expected.length + 1
         raise(ArgumentError, "More positional arguments in method body than specified in expected arguments", caller)
       end
+      
+      # helper for creating UnboundMethods
+      unbound_method = lambda do |name, body|
+        define_method(name, &body)
+        instance_method(name)
+      end
 
       # create an UnboundMethod from method_body so we can
       # 1. set `self`
@@ -242,19 +248,51 @@ module Flexibility
       #
       # `instance_eval` only allows us to do (1), whereas `instance_exec` only
       # allows (1) and (2).
-      define_method(method_name, &method_body)
-      method_impl = instance_method(method_name)
+      method_um = unbound_method["#{method_name}#body", method_body]
 
+      # similarly, create UnboundMethods from the callbacks
+      expected_ums = {}
+
+      expected.each do |key, cbs|
+        # normalize a single callback to a collection
+        cbs = [cbs] unless cbs.respond_to? :inject
+
+        expected_ums[key] = cbs.map.with_index do |cb, index|
+          unless cb.respond_to? :to_proc
+            raise(ArgumentError, "Unrecognized expectation #{cb.inspect} for #{key.inspect}, expecting something that responds to #to_proc", caller)
+          else
+            unbound_method["#{method_name}###{key}##{index}", cb]
+          end
+        end
+      end
+        
       # assume all but the last block argument should capture positional
       # arguments
-      keys = expected.keys[ 0 ... method_impl.arity - 1]
+      keys = expected_ums.keys[ 0 ... method_um.arity - 1]
 
       # interpret user arguments using #options, then pass them to the method
       # body
       define_method(method_name) do |*given, &blk|
-        opts = options(given, expected)
-        method_impl.bind(self).call(
-          *keys.map { |key| opts.delete key }.push( opts ).take( method_impl.arity ), &blk
+
+        # let the caller bundle arguments in a trailing Hash
+        trailing_opts = Hash === given.last ? given.pop : {}
+        unless expected_ums.length >= given.length
+          raise(ArgumentError, "Got #{given.length} arguments, but only know how to handle #{expected_ums.length}", caller)
+        end
+
+        opts = {}
+        expected_ums.each.with_index do |(key, ums), i|
+          # check positional argument for value first, then default to trailing options
+          found = i < given.length ? given[i] : trailing_opts[key]
+
+          # run every callback, threading the results through each
+          opts[key] = ums.inject(found) do |val, um|
+            um.bind(self).call( *[val, key, opts, found].take(um.arity < 0 ? 4 : um.arity), &blk )
+          end
+        end
+
+        method_um.bind(self).call(
+          *keys.map { |key| opts.delete key }.push( opts ).take( method_um.arity ), &blk
         )
       end
     end
