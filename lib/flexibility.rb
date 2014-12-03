@@ -29,74 +29,26 @@
 # Popping over to IRB, we could use `Banner#show` with keyword arguments,
 #
 #     irb> banner = Banner.new
-#     irb> banner.show( message: "Hello", width: 10, symbol: '*' )
+#     irb> banner.show( message: "HELLO", width: 10, symbol: '*' )
 #     **********
-#     * Hello  *
+#     * HELLO  *
 #     **********
 #      => nil
 #
 # positional arguments
 #
-#     irb> banner.show( "Hello World!", 20, '#' )
+#     irb> banner.show( "HELLO WORLD!", 20, '#' )
 #     ####################
-#     # Hello World!     #
+#     # HELLO WORLD!     #
 #     ####################
 #      => nil
 #
 # or a mix
 #
-#     irb> banner.show( "a-ha", symbol: '-', width: 15 ) # mixed keyword and positional arguments
+#     irb> banner.show( "A-HA", symbol: '-', width: 15 )
 #     ---------------
-#     - a-ha        -
+#     - A-HA        -
 #     ---------------
-#      => nil
-#
-# Now
-#
-#     class Banner
-#       define :box, {
-#         width:  [
-#           default { @width },
-#           validate { |n| n >= 1 }
-#         ],
-#         height: [
-#           default { |_key,opts| opts[:width] } ,
-#           validate { |n| n >= 2 }
-#         ],
-#         symbol: default('*')
-#       } do |width, height, symbol, _unused|
-#
-#         puts "#{symbol * width}"
-#         (height-2).times do
-#           puts "#{symbol}#{' ' * (width-2)}#{symbol}"
-#         end
-#         puts "#{symbol * width}"
-#       end
-#     end
-#
-# We can call `Banner#show` and `Banner#box` with positional and keyword
-# arguments:
-#
-#     irb> banner.box( width: 5, height: 5, symbol: '8' ) # all keyword arguments
-#     88888
-#     8   8
-#     8   8
-#     8   8
-#     88888
-#      => nil
-#     irb> banner.box( 10, 3, '@' ) # all positional arguments
-#     @@@@@@@@@@
-#     @        @
-#     @@@@@@@@@@
-#      => nil
-#     irb> banner.box( 3, 7, symbol:'x' ) # mixed keyword and positional arguments
-#     xxx
-#     x x
-#     x x
-#     x x
-#     x x
-#     x x
-#     xxx
 #      => nil
 #
 # The keyword arguments are taken from the last argument, if it is a Hash, while
@@ -105,24 +57,76 @@
 #
 # `Flexibility` also allows the user to run zero or more callbacks on each
 # argument, and includes a number of callback generators to specify a
-# {Flexibility::CallbackGenerators#default default} value, mark a given argument
-# as {Flexibility::CallbackGenerators#required required}, {Flexibility::CallbackGenerators#validate validate} an argument,
-# or {Flexibility::CallbackGenerators#transform transform} an argument into a
-# more acceptable form.
+# {Flexibility#default default} value, mark a given argument as
+# {Flexibility#required required}, {Flexibility#validate validate} an argument,
+# or {Flexibility#transform transform} an argument into a more acceptable form.
+#
+# Continuing our prior example, this means `Banner#show` only requires one
+# argument, which it automatically upper-cases:
+#
+#     irb> banner.show( "celery?" )
+#     ****************************************
+#     * CELERY?                              *
+#     ****************************************
+#
+# And it will raise an error if the `message` is missing or not a String, or if
+# the `width` argument is negative:
+#
+#     irb> show_error = lambda { |&blk| begin ; blk[] ; rescue => e ; [ e.class, e.message ] ; end }
+#     irb> show_error.() { banner.show }
+#     => [ ArgumentError, "Required argument :message not given" ]
+#     irb> show_error.() { banner.show 8675309 }
+#     => [ ArgumentError, "Invalid value 8675309 given for argument :message" ]
+#     irb> show_error.() { banner.show "hello", -9 }
+#     => [ ArgumentError, "Invalid value -9 given for argument :width" ]
+# 
+# Just as `Flexibility#define` allows the method caller to determine whether to
+# pass the method arguments positionally, with keywords, or in a mixture of the
+# two, it also allows method authors to determine whether the method receives
+# arguments in a Hash or positionally:
+#
+#     class Banner
+#       opts_desc = { a: [], b: [], c: [], d: [], e: [] }
+#       define :all_positional, opts_desc do |a,b,c,d,e,opts|
+#         [ a, b, c, d, e, opts ]
+#       end
+#       define :all_keyword, opts_desc do |opts|
+#         [ opts ]
+#       end
+#       define :mixture, opts_desc do |a,b,c,opts|
+#         [ a, b, c, opts ]
+#       end
+#     end
+#
+#     irb> banner.all_positional(1,2,3,4,5)
+#     => [ 1, 2, 3, 4, 5, {} ]
+#     irb> banner.all_positional(a:1, b:2, c:3, d:4, e:5, f:6)
+#     => [ 1, 2, 3, 4, 5, {f:6} ]
+#     irb> banner.all_keyword(1,2,3,4,5)
+#     => [ { a:1, b:2, c:3, d:4, e:5 } ]
+#     irb> banner.all_keyword(a:1, b:2, c:3, d:4, e:5, f:6)
+#     => [ { a:1, b:2, c:3, d:4, e:5, f:6 } ]
+#     irb> banner.mixture(1,2,3,4,5)
+#     => [ 1, 2, 3, { d:4, e:5 } ]
+#     irb> banner.mixture(a:1, b:2, c:3, d:4, e:5, f:6)
+#     => [ 1, 2, 3, { d:4, e:5, f:6 } ]
+#         
 module Flexibility
 
+
   # helper for creating UnboundMethods
-  count = 0
-  GET_UNBOUND_METHOD = lambda do |klass, body|
-    klass.class_eval do
-      name = "#unbound_method_#{count += 1}"
-      define_method(name, &body)
-      um = instance_method(name)
-      remove_method(name)
-      um
+  GET_UNBOUND_METHOD = begin
+    count = 0 
+    lambda do |klass, body|
+      klass.class_eval do
+        name = "#unbound_method_#{count += 1}"
+        define_method(name, &body)
+        um = instance_method(name)
+        remove_method(name)
+        um
+      end
     end
   end
-
 
   # `#default` allows you to specify a default value for an argument.
   #
