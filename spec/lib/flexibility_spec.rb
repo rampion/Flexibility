@@ -369,6 +369,12 @@ describe Flexibility do
     describe "::define" do
       expose :klass, :define
       it_behaves_like "::ClassMethods#define"
+
+      def options(given, expected)
+        klass.send(:define,:foo, expected) { |opts| opts }
+        instance.foo(*given)
+      end
+      it_behaves_like "::InstanceMethods#options"
     end
   end
 end
