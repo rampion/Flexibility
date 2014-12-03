@@ -155,9 +155,12 @@ module Flexibility
     #
     #     irb> banner = Banner.new
     #     irb> banner.dimensions
-    #       => { depth: 1, width: 40, height: 40, duration: nil }
+    #     => { depth: 1, width: 40, height: 40, duration: nil }
     #     irb> banner.dimensions( depth: 2, width: 10, height: 5, duration: 7 )
-    #       => { depth: 2, width: 10, height: 5, duration: 7 }
+    #     => { depth: 2, width: 10, height: 5, duration: 7 }
+    #     irb> banner.dimensions( width: 10 ) { puts "getting duration" ; 12 }
+    #     getting duration
+    #     => { depth: 1, width: 10, height: 10, duration: 12 }
     #
     #
     def default(*args,&blk)
