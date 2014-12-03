@@ -253,7 +253,7 @@ module Flexibility
         raise(ArgumentError, "Got #{given.length} arguments, but only know how to handle #{expected_ums.length}", caller)
       end
 
-      opts = {}
+      opts = trailing_opts.dup
       expected_ums.each.with_index do |(key, ums), i|
         # check positional argument for value first, then default to trailing options
         found = i < given.length ? given[i] : trailing_opts[key]
