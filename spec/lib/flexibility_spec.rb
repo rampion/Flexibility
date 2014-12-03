@@ -1,83 +1,95 @@
 require_relative '../../lib/flexibility'
 
 describe Flexibility do
-  # make `method` available to be called w/o an explicit receiver
-  def self.expose target, method
-    define_method(method) do |*args,&blk|
-      receiver = Symbol === target ? self.send(target) : target
-      receiver.send(method, *args, &blk)
+  let (:klass) do
+    klass = Class.new do
+      include Flexibility 
+      def self.inspect 
+        "#<klass>" 
+      end
+      class <<self
+        # make the instance methods public for testing purposes
+        Flexibility.instance_methods.each { |method_name| public method_name }
+      end
     end
   end
+  let (:instance) { klass.new.instance_eval { def inspect ; "#<instance>" ; end ; self }  }
 
-  shared_examples_for '::CallbackGenerators#transform' do
+  describe '#transform' do
     it 'returns the block as a proc' do
       p = proc{}
-      transform(&p) == p
+      klass.transform(&p) == p
     end
   end
 
-  shared_examples_for '::CallbackGenerators#default' do
+  describe '#default' do
     describe "when called with a block, returns a proc which" do
       it "returns any non-nil value given it as initial argument without calling the block" do
         ix = 0
-        expect(default { ix += 1 }.call(7)).to eq(7)
-        expect(default { ix += 1 }.call(false)).to eq(false)
+        expect(klass.default { ix += 1 }.call(7)).to eq(7)
+        expect(klass.default { ix += 1 }.call(false)).to eq(false)
         expect(ix).to eq(0)
       end
       it "calls the block with the other arguments when given nil as initial argument" do
         _ = self
-        expect(default { |*args| _.expect(args).to _.eq([]); 5 }.call()).to eq(5)
-        expect(default { |*args| _.expect(args).to _.eq([1,2,3]); 5 }.call(nil,1,2,3)).to eq(5)
+        expect(klass.default { |*args| _.expect(args).to _.eq([]); 5 }.call()).to eq(5)
+        expect(klass.default { |*args| _.expect(args).to _.eq([1,2,3]); 5 }.call(nil,1,2,3)).to eq(5)
       end
       it "binds the block to whatever object the return proc is bound to" do
-        p = default { self }
+        p = klass.default { self }
         expect( 5.instance_exec(&p) ).to eq(5)
         expect( :foo.instance_exec(nil,1,2,3,&p) ).to eq(:foo)
       end
     end
     describe "when called with a single argument, returns a proc which" do
       it "returns any non-nil value given it as initial argument" do
-        expect(default( 5 ).call(7)).to eq(7)
-        expect(default( 5 ).call(false)).to eq(false)
+        expect(klass.default( 5 ).call(7)).to eq(7)
+        expect(klass.default( 5 ).call(false)).to eq(false)
       end
       it "returns the argument when given nil as initial argument" do
-        expect(default( 5 ).call()).to eq(5)
-        expect(default( 5 ).call(nil)).to eq(5)
+        expect(klass.default( 5 ).call()).to eq(5)
+        expect(klass.default( 5 ).call(nil)).to eq(5)
       end
     end
   end
 
-  shared_examples_for '::CallbackGenerators#required' do
+  describe '#required' do
     it 'returns a proc that raises an error if given nil as an initial argument' do
-      expect { required[] }.to raise_error(ArgumentError)
-      expect { required[nil] }.to raise_error(ArgumentError)
+      expect { klass.required[] }.to raise_error(ArgumentError)
+      expect { klass.required[nil] }.to raise_error(ArgumentError)
     end
     it 'returns a proc that returns its initial argument if non-nil' do
-      expect( required[5] ).to eq(5)
-      expect( required[false] ).to eq(false)
+      expect( klass.required[5] ).to eq(5)
+      expect( klass.required[false] ).to eq(false)
     end
   end
 
-  shared_examples_for '::CallbackGenerators#validate' do
+  describe '#validate' do
     it "returns a proc that returns the initial argument if the block returns truthy on it" do
-      expect( validate { true }[ 7 ] ).to eq( 7 )
-      expect( validate { true }[ nil ] ).to be( nil )
-      expect( validate { true }[ false ] ).to eq( false )
+      expect( klass.validate { true }[ 7 ] ).to eq( 7 )
+      expect( klass.validate { true }[ nil ] ).to be( nil )
+      expect( klass.validate { true }[ false ] ).to eq( false )
     end
     it "returns a proc that raises an error if the block returns falsy on the initial argument" do
-      expect{ validate { false }[ 7 ] }.to raise_error(ArgumentError)
-      expect{ validate { false }[ nil ] }.to raise_error(ArgumentError)
-      expect{ validate { false }[ false ] }.to raise_error(ArgumentError)
+      expect{ klass.validate { false }[ 7 ] }.to raise_error(ArgumentError)
+      expect{ klass.validate { false }[ nil ] }.to raise_error(ArgumentError)
+      expect{ klass.validate { false }[ false ] }.to raise_error(ArgumentError)
     end
     it "returns a proc that passes all its arguments to the given block" do
       _ = self
-      validate { |*args| _.expect(args).to _.eq([]) ; true }[] 
-      validate { |*args| _.expect(args).to _.eq([1,2,3,4,5,6]) ; true }[1,2,3,4,5,6] 
+      klass.validate { |*args| _.expect(args).to _.eq([]) ; true }[] 
+      klass.validate { |*args| _.expect(args).to _.eq([1,2,3,4,5,6]) ; true }[1,2,3,4,5,6] 
     end
   end
 
-  shared_examples_for '::InstanceMethods#options' do
+  describe '#define' do
     let (:tag)   { proc { |t| proc { |x| [t, x] } } }
+
+    def options(given, expected)
+      klass.define(:reflect_options, expected) { |opts| opts }
+      instance.reflect_options(*given)
+    end
+
     it 'applies a hash-of-procs to a array-of-values to get a hash-of-results' do
       expect(options(
         ["one", "two", "three"], 
@@ -250,28 +262,26 @@ describe Flexibility do
         baz: two_
       )
     end
-  end
 
-  shared_examples_for '::ClassMethods#define' do
     it "creates a new instance method" do
-      define(:foo, {}) {}
+      klass.define(:foo, {}) {}
       expect( klass.instance_methods ).to include(:foo)
     end
     it "binds the method body to the receiver" do
       _ = self
-      define(:foo, { a: [] }) { _.expect(self).to _.be(_.instance) }
+      klass.define(:foo, { a: [] }) { _.expect(self).to _.be(_.instance) }
       instance.foo
     end
     it "passes all n arguments to the method body as a hash if the method body takes 1 argument" do
       _ = self
-      define(:foo, { a: [], b: [], c: [] }) do |opts|
+      klass.define(:foo, { a: [], b: [], c: [] }) do |opts|
         _.expect( opts ).to _.eq({ a: 1, b: 2, c: 3 })
       end
       instance.foo(1,2,3)
     end
     it "passes all n arguments to the method body positionally if the method body takes n+1 arguments" do
       _ = self
-      define(:foo, { a: [], b: [], c: [] }) do |a,b,c,opts|
+      klass.define(:foo, { a: [], b: [], c: [] }) do |a,b,c,opts|
         _.expect( a ).to _.eq( 1 )
         _.expect( b ).to _.eq( 2 )
         _.expect( c ).to _.eq( 3 )
@@ -281,7 +291,7 @@ describe Flexibility do
     end
     it "passes the first k arguments to the method body positionally if the method body takes 1 < k <= n arguments" do
       _ = self
-      define(:foo, { a: [], b: [], c: [], d: []  }) do |a,b,opts|
+      klass.define(:foo, { a: [], b: [], c: [], d: []  }) do |a,b,opts|
         _.expect( a ).to _.eq( 1 )
         _.expect( b ).to _.eq( 2 )
         _.expect( opts ).to _.eq({ c: 3, d: 4 })
@@ -289,14 +299,14 @@ describe Flexibility do
       instance.foo(1,2,3,4)
     end
     it "raises an error if the method body uses a splat" do
-      expect { define(:foo, {}) { |*as| } }.to raise_error(NotImplementedError)
+      expect { klass.define(:foo, {}) { |*as| } }.to raise_error(NotImplementedError)
     end
     it "raises an error if the method body uses too many arguments" do
-      expect { define(:foo, {}) { |a,b,c,opts| } }.to raise_error(ArgumentError)
+      expect { klass.define(:foo, {}) { |a,b,c,opts| } }.to raise_error(ArgumentError)
     end
     it "allows the method body to access a passed block using &" do
       run = false
-      define(:foo, {}) { |&blk| blk[5] }
+      klass.define(:foo, {}) { |&blk| blk[5] }
       instance.foo { |n| expect(n).to eq(5) ; run = true}
       expect(run).to be(true)
     end
@@ -305,52 +315,16 @@ describe Flexibility do
     # https://banisterfiend.wordpress.com/2010/11/06/behavior-of-yield-in-define_method/
     it "allows the method body to access a passed block using yield", impossible: true do
       run = false
-      define(:foo, {}) { yield 5 }
+      klass.define(:foo, {}) { yield 5 }
       instance.foo { |n| expect(n).to eq(5) ; run = true}
       expect(run).to be(true)
     end
 
     it "allows the callbacks to access a passed block using &" do
       run = false
-      define(:foo, { bar: proc { |&blk| blk[] } }) { |opts| opts }
+      klass.define(:foo, { bar: proc { |&blk| blk[] } }) { |opts| opts }
       expect( instance.foo { run = true ; 5 } ).to eq( bar: 5 )
       expect(run).to be(true)
-    end
-  end
-
-  describe "when included" do
-    let (:klass) { Class.new { include Flexibility ; def self.inspect ; "#<klass>" ; end } }
-    let (:instance) { klass.new.instance_eval { def inspect ; "#<instance>" ; end ; self }  }
-
-    describe '::transform' do
-      expose :klass, :transform
-      it_behaves_like "::CallbackGenerators#transform"
-    end
-
-    describe '::default' do
-      expose :klass, :default
-      it_behaves_like "::CallbackGenerators#default"
-    end
-
-    describe '::required' do
-      expose :klass, :required
-      it_behaves_like "::CallbackGenerators#required"
-    end
-
-    describe '::validate' do
-      expose :klass, :validate
-      it_behaves_like "::CallbackGenerators#validate"
-    end
-
-    describe "::define" do
-      expose :klass, :define
-      it_behaves_like "::ClassMethods#define"
-
-      def options(given, expected)
-        klass.send(:define,:foo, expected) { |opts| opts }
-        instance.foo(*given)
-      end
-      it_behaves_like "::InstanceMethods#options"
     end
   end
 end
