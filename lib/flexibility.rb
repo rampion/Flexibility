@@ -1,6 +1,6 @@
 # `Flexibility` is a mix-in for ruby classes that allows you to easily
-# {Flexibility::ClassInstanceMethods#define ::define} methods
-# that can take a mixture of positional and keyword arguments.
+# {Flexibility#define define} methods that can take a mixture of positional
+# and keyword arguments.
 #
 # For example, suppose we define
 #
@@ -8,7 +8,11 @@
 #       include Flexibility
 #
 #       define :show, {
-#         message: required,
+#         message: [
+#           required,
+#           validate { |s| String === s },
+#           transform { |s| s.upcase }
+#         ],
 #         width:   [
 #           default { @width },
 #           validate { |n| 0 <= n }
@@ -131,11 +135,13 @@ module Flexibility
   # `#default` allows you to specify a default value for an argument.
   #
   # You can pass `#default` either
+  #
   #   - an argument containing a constant value
   #   - a block to be bound to the instance and run as needed
   #
   # With the block form, not only do you have access to instance variables,
   # but you also have access to
+  #
   #   - the keyword associated with the argument
   #   - the hash of options defined thus far
   #   - the original argument value (if an earlier transformation `nil`'ed it out)
@@ -171,6 +177,24 @@ module Flexibility
   #     getting duration
   #     => { depth: 1, width: 10, height: 10, duration: 12 }
   #
+  # Note that the `yield` keyword inside the block bound to `default` won't be
+  # able to access the block bound to the method invocation, as `yield` is
+  # lexically scoped (like a local variable).
+  #
+  #     module YieldExample
+  #       def self.create
+  #         Class.new do
+  #           include Flexibility
+  #           define :run, {
+  #             using_yield:  default { yield },
+  #             using_block:  default { |&blk| blk[] }
+  #           } { |opts| opts }
+  #         end.new
+  #       end
+  #     end
+  #
+  #     irb> YieldExample.create { :class_creation }.run { :method_invocation }
+  #     => { using_yield: :class_creation, using_block: :method_invocation }
   #
   def default(*args,&cb)
     if args.length != (cb ? 0 : 1)
