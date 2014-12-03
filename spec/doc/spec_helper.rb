@@ -71,25 +71,45 @@ def extract_examples path
     comment_blocks.each do |block|
       next if block[:code_blocks].empty?
 
-      it block[:description] do
-        b = eval( "module #{block[:description].gsub(/^\W+|\W+$/,'').gsub(/\W+/,'_').upcase!} ; binding ;  end" )
+      describe block[:description] do
 
-        block[:code_blocks].each do |code|
-          actual_result = eval( code[:lines].join, b, path, code[:lineno] )
-          STROUT.rewind
-          actual_output = STROUT.read
-          STROUT.rewind
-          STROUT.truncate 0
-
+        before = []
+        block[:code_blocks].each_with_index do |code, i|
           if code[:result]
-            expected_result = eval( code[:result], b, path, code[:result_lineno] )
-            eval(%!expect( actual_result ).to eq( expected_result )!, binding, path, code[:lineno] )
+            it "result of `#{code[:lines].first.strip}...`" do
+              b = eval(<<-EVAL)
+                module #{block[:description].gsub(/^\W+|\W+$/,'').gsub(/\W+/,'_').upcase!}_RESULT_#{i}
+                  binding
+                end
+              EVAL
+              block[:code_blocks][0 ... i].each { |x| eval( x[:lines].join, b, path, x[:lineno] ) }
+
+              actual_result = eval( code[:lines].join, b, path, code[:lineno] )
+              expected_result = eval( code[:result], b, path, code[:result_lineno] )
+              eval(%!expect( actual_result ).to eq( expected_result )!, binding, path, code[:lineno] )
+            end
           end
 
           if code[:output]
-            expected_output = code[:output].join
-            eval( %!expect( actual_output ).to eq( expected_output )!, binding, path, code[:lineno] )
+            it "output of `#{code[:lines].first.strip}...`" do
+              b = eval(<<-EVAL)
+                module #{block[:description].gsub(/^\W+|\W+$/,'').gsub(/\W+/,'_').upcase!}_OUTPUT_#{i}
+                  binding
+                end
+              EVAL
+              block[:code_blocks][0 ... i].each { |x| eval( x[:lines].join, b, path, x[:lineno] ) }
+              STROUT.rewind
+              STROUT.truncate 0
+              eval( code[:lines].join, b, path, code[:lineno] )
+              STROUT.rewind
+
+              actual_output = STROUT.read
+              expected_output = code[:output].join
+              eval( %!expect( actual_output ).to eq( expected_output )!, binding, path, code[:lineno] )
+            end
           end
+
+          before << code
         end
       end
     end
