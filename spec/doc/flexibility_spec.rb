@@ -66,7 +66,7 @@ describe "lib/flexibility.rb examples" do
     next if block[:code_blocks].empty?
 
     it block[:description] do
-      b = Module.new.module_eval { binding }
+      b = eval( "module #{block[:description].gsub(/^\W+|\W+$/,'').gsub(/\W+/,'_').upcase!} ; binding ;  end" )
 
       block[:code_blocks].each do |code|
         actual_result = eval( code[:lines].join, b, path, code[:lineno] )
