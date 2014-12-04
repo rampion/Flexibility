@@ -17,6 +17,12 @@ module Flexibility
     end
   end
 
+  # helper to call UnboundMethods with proper number of args
+  RUN_UNBOUND_METHOD = lambda do |um, instance, *args, &blk|
+    args = args.take(um.arity) if 0 <= um.arity && um.arity < args.length
+    um.bind(instance).call(*args,&blk)
+  end
+
   # @!group Argument Callback Generators
 
   # `#default` allows you to specify a default value for an argument.
@@ -112,8 +118,7 @@ module Flexibility
         unless val.nil? 
           val
         else
-          args = args.take(args.length) if 0 <= um.arity && um.arity < args.length
-          um.bind(self).call(*args,&blk)
+          RUN_UNBOUND_METHOD[um,self,*args,&blk]
         end
       end
     else
@@ -134,8 +139,7 @@ module Flexibility
     um = GET_UNBOUND_METHOD[self, &cb]
     GET_UNBOUND_METHOD.(self) do |*args,&blk|
       val, key, _opts, orig = *args
-      args = args.take(um.arity) if 0 <= um.arity && um.arity < args.length
-      unless um.bind(self).call(*args,&blk)
+      unless RUN_UNBOUND_METHOD[um,self,*args,&blk]
         raise(ArgumentError, "Invalid value #{orig.inspect} given for argument #{key.inspect}", caller)
       end
       val
@@ -203,13 +207,16 @@ module Flexibility
 
         # run every callback, threading the results through each
         opts[key] = ums.inject(found) do |val, um|
-          um.bind(self).call( *[val, key, opts, found].take(um.arity < 0 ? 4 : um.arity), &blk )
+          RUN_UNBOUND_METHOD[um, self, val, key, opts, found, &blk]
         end
       end
 
-      method_um.bind(self).call(
-        *keys.map { |key| opts.delete key }.push( opts ).take( method_um.arity ), &blk
-      )
+      RUN_UNBOUND_METHOD[ 
+        method_um, 
+        self, 
+        *keys.map { |key| opts.delete key }.push( opts ).take( method_um.arity ), 
+        &blk 
+      ]
     end
   end
 

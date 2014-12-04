@@ -59,7 +59,7 @@ describe Flexibility do
   let (:instance) { klass.new.instance_eval { def inspect ; "#<instance>" ; end ; self }  }
 
   def run um, *args, &blk
-    um.bind(instance).call(*args, &blk)
+    Flexibility::RUN_UNBOUND_METHOD[ um, instance, *args, &blk ]
   end
 
   describe '#transform' do
