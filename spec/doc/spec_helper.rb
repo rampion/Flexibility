@@ -21,6 +21,7 @@ def extract_examples path
     last_index  = nil
     code_blocks = nil
     last_mode   = nil
+    is_code     = false
     File.read( path ).each_line.with_index do |line, index|
       next unless line =~ COMMENT_RE[extension]
       spaces    = $1.length
@@ -37,7 +38,13 @@ def extract_examples path
       last_spaces = spaces
       last_index  = index
 
-      next unless indent >= 4
+      # support ```...``` code blocks
+      if comment =~ /^```/
+        is_code ^= true
+        next
+      end
+
+      next unless is_code or indent >= 4
       line.sub! hashmark, hashmark.gsub(/./,' ')
 
       mode = if comment =~ /^irb> /

@@ -4,31 +4,33 @@ and keyword arguments.
 
 For example, suppose we define
 
-    class Banner
-      include Flexibility
+```ruby
+class Banner
+  include Flexibility
 
-      define :show, {
-        message: [
-          required,
-          validate { |s| String === s },
-          transform { |s| s.upcase }
-        ],
-        width:   [
-          default { @width },
-          validate { |n| 0 <= n }
-        ],
-        symbol:  default('*')
-      } do |message,width,symbol,unused_opts|
-        width = [ width, message.length + 4 ].max
-        puts "#{symbol * width}"
-        puts "#{symbol} #{message.ljust(width - 4)} #{symbol}"
-        puts "#{symbol * width}"
-      end
+  define :show, {
+    message: [
+      required,
+      validate { |s| String === s },
+      transform { |s| s.upcase }
+    ],
+    width:   [
+      default { @width },
+      validate { |n| 0 <= n }
+    ],
+    symbol:  default('*')
+  } do |message,width,symbol,unused_opts|
+    width = [ width, message.length + 4 ].max
+    puts "#{symbol * width}"
+    puts "#{symbol} #{message.ljust(width - 4)} #{symbol}"
+    puts "#{symbol * width}"
+  end
 
-      def initialize
-        @width = 40
-      end
-    end
+  def initialize
+    @width = 40
+  end
+end
+```
 
 Popping over to IRB, we could use `Banner#show` with keyword arguments,
 
@@ -89,20 +91,20 @@ pass the method arguments positionally, with keywords, or in a mixture of the
 two, it also allows method authors to determine whether the method receives
 arguments in a Hash or positionally:
 
-    class Banner
-      opts_desc = { a: [], b: [], c: [], d: [], e: [] }
-      define :all_positional, opts_desc do |a,b,c,d,e,opts|
-        [ a, b, c, d, e, opts ]
-      end
-      define :all_keyword, opts_desc do |opts|
-        [ opts ]
-      end
-      define :mixture, opts_desc do |a,b,c,opts|
-        [ a, b, c, opts ]
-      end
-    end
-
-.
+```ruby
+class Banner
+  opts_desc = { a: [], b: [], c: [], d: [], e: [] }
+  define :all_positional, opts_desc do |a,b,c,d,e,opts|
+    [ a, b, c, d, e, opts ]
+  end
+  define :all_keyword, opts_desc do |opts|
+    [ opts ]
+  end
+  define :mixture, opts_desc do |a,b,c,opts|
+    [ a, b, c, opts ]
+  end
+end
+```
 
     irb> banner.all_positional(1,2,3,4,5)
     => [ 1, 2, 3, 4, 5, {} ]

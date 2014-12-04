@@ -1,7 +1,6 @@
 # {include:file:README.md}
 module Flexibility
 
-
   # helper for creating UnboundMethods
   GET_UNBOUND_METHOD = begin
     count = 0 
@@ -33,22 +32,24 @@ module Flexibility
   #
   # For example, given the method `dimensions`:
   #
-  #     class Banner
-  #       include Flexibility
+  # ```ruby
+  # class Banner
+  #   include Flexibility
   #
-  #       define :dimensions, {
-  #         depth:    default( 1 ),
-  #         width:    default { @width },
-  #         height:   default { |_key,opts| opts[:width] } ,
-  #         duration: default { |&blk| blk[] if blk }
-  #       } do |opts|
-  #         opts
-  #       end
+  #   define :dimensions, {
+  #     depth:    default( 1 ),
+  #     width:    default { @width },
+  #     height:   default { |_key,opts| opts[:width] } ,
+  #     duration: default { |&blk| blk[] if blk }
+  #   } do |opts|
+  #     opts
+  #   end
   #
-  #       def initialize
-  #         @width = 40
-  #       end
-  #     end
+  #   def initialize
+  #     @width = 40
+  #   end
+  # end
+  # ```
   #
   # We can specify (or not) any of the arguments to see the defaults in action
   #
@@ -65,19 +66,19 @@ module Flexibility
   # able to access the block bound to the method invocation, as `yield` is
   # lexically scoped (like a local variable).
   #
-  #     module YieldExample
-  #       def self.create
-  #         Class.new do
-  #           include Flexibility
-  #           define :run, {
-  #             using_yield:  default { yield },
-  #             using_block:  default { |&blk| blk[] }
-  #           } { |opts| opts }
-  #         end.new
-  #       end
-  #     end
-  #
-  # .
+  # ```ruby
+  # module YieldExample
+  #   def self.create
+  #     Class.new do
+  #       include Flexibility
+  #       define :run, {
+  #         using_yield:  default { yield },
+  #         using_block:  default { |&blk| blk[] }
+  #       } { |opts| opts }
+  #     end.new
+  #   end
+  # end
+  # ```
   #
   #     irb> YieldExample.create { :class_creation }.run { :method_invocation }
   #     => { using_yield: :class_creation, using_block: :method_invocation }
@@ -128,7 +129,7 @@ module Flexibility
     # 3. pass it a block
     #
     # `instance_eval` only allows us to do (1), whereas `instance_exec` only
-    # allows (1) and (2).
+    # allows (1) and (2), and `call` only allows (2) and (3).
     method_um = GET_UNBOUND_METHOD[self, method_body]
 
     # similarly, create UnboundMethods from the callbacks
