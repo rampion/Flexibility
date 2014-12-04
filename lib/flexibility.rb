@@ -6,7 +6,7 @@ module Flexibility
   # helper for creating UnboundMethods
   GET_UNBOUND_METHOD = begin
     count = 0
-    lambda do |klass, body|
+    lambda do |klass, &body|
       klass.class_eval do
         name = "#unbound_method_#{count += 1}"
         define_method(name, &body)
@@ -106,32 +106,43 @@ module Flexibility
     if args.length != (cb ? 0 : 1)
       raise(ArgumentError, "Wrong number of arguments to `default` (expects 0 with a block, or 1 without)", caller)
     elsif cb
-      um = GET_UNBOUND_METHOD[self, cb]
-      proc { |val, *args, &blk| val.nil? ? um.bind(self).call(*args.take(um.arity < 0 ? args.length : um.arity),&blk) : val }
+      um = GET_UNBOUND_METHOD[self, &cb]
+      GET_UNBOUND_METHOD.(self) do |*args, &blk| 
+        val = args.shift
+        unless val.nil? 
+          val
+        else
+          args = args.take(args.length) if 0 <= um.arity && um.arity < args.length
+          um.bind(self).call(*args,&blk)
+        end
+      end
     else
       default = args.first
-      proc { |val| val.nil? ? default : val }
+      GET_UNBOUND_METHOD.(self) { |*args| val = args.shift; val.nil? ? default : val }
     end
   end
   def required
-    proc do |val,key|
+    GET_UNBOUND_METHOD.(self) do |*args|
+      val, key = *args
       if val.nil?
         raise(ArgumentError, "Required argument #{key.inspect} not given", caller)
       end
       val
     end
   end
-  def validate
-    proc do |*args|
+  def validate(&cb)
+    um = GET_UNBOUND_METHOD[self, &cb]
+    GET_UNBOUND_METHOD.(self) do |*args,&blk|
       val, key, _opts, orig = *args
-      unless yield(*args)
+      args = args.take(um.arity) if 0 <= um.arity && um.arity < args.length
+      unless um.bind(self).call(*args,&blk)
         raise(ArgumentError, "Invalid value #{orig.inspect} given for argument #{key.inspect}", caller)
       end
       val
     end
   end
   def transform(&blk)
-    blk
+    GET_UNBOUND_METHOD.(self, &blk)
   end
 
   # @!endgroup
@@ -151,7 +162,7 @@ module Flexibility
     #
     # `instance_eval` only allows us to do (1), whereas `instance_exec` only
     # allows (1) and (2), and `call` only allows (2) and (3).
-    method_um = GET_UNBOUND_METHOD[self, method_body]
+    method_um = GET_UNBOUND_METHOD[self, &method_body]
 
     # similarly, create UnboundMethods from the callbacks
     expected_ums = {}
@@ -164,7 +175,7 @@ module Flexibility
         if UnboundMethod === cb
           cb
         elsif cb.respond_to? :to_proc
-          GET_UNBOUND_METHOD[self, cb]
+          GET_UNBOUND_METHOD[self, &cb]
         else
           raise(ArgumentError, "Unrecognized expectation #{cb.inspect} for #{key.inspect}, expecting an UnboundMethod or something that responds to #to_proc", caller)
         end

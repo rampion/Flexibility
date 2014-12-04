@@ -1,6 +1,48 @@
 require_relative '../../lib/flexibility'
 
 describe Flexibility do
+
+  describe '::GET_UNBOUND_METHOD' do
+    let (:klass) { klass = Class.new { def self.inspect ; "#<klass>" ; end } }
+    let (:instance) { klass.new.instance_eval { def inspect ; "#<instance>" ; end ; self }  }
+
+    it 'returns the block as an UnboundMethod of the given class' do
+      um = Flexibility::GET_UNBOUND_METHOD.(klass) {}
+      expect(um).to be_instance_of(UnboundMethod)
+      expect(um.owner).to be(klass)
+    end
+    it 'adds no instance methods to the given class' do
+      before = klass.instance_methods.dup
+      um = Flexibility::GET_UNBOUND_METHOD.(klass) {}
+      expect(klass.instance_methods).to eq(before)
+    end
+    describe 'the returned UnboundMethod' do
+      it 'sets self to the bound instance when called' do
+        _ = self
+        run = false
+        um = Flexibility::GET_UNBOUND_METHOD.(klass) { _.expect( self ).to _.be( _.instance ) ; run = true }
+        um.bind(instance).call()
+        expect( run ).to be(true)
+      end
+      it "passes through any arguments given to the when called" do
+        args = [ :one, :two, :three ]
+        _ = self
+        run = false
+        um = Flexibility::GET_UNBOUND_METHOD.(klass) { |*given| _.expect( given ).to _.eq( args ) ; run = true }
+        um.bind(instance).call(*args)
+        expect( run ).to be(true)
+      end
+      it "passes through any block bound when it is called" do
+        blk = proc {}
+        _ = self
+        run = false
+        um = Flexibility::GET_UNBOUND_METHOD.(klass) { |&given| _.expect( given ).to _.be( blk ) ; run = true }
+        um.bind(instance).call(&blk)
+        expect( run ).to be(true)
+      end
+    end
+  end
+
   let (:klass) do
     klass = Class.new do
       include Flexibility 
@@ -13,24 +55,40 @@ describe Flexibility do
       end
     end
   end
+
   let (:instance) { klass.new.instance_eval { def inspect ; "#<instance>" ; end ; self }  }
 
+  def run um, *args, &blk
+    um.bind(instance).call(*args, &blk)
+  end
+
   describe '#transform' do
-    it 'returns the block as a proc' do
-      p = proc{}
-      klass.transform(&p) == p
+    it 'returns the block as an UnboundMethod' do
+      return_val = double('return-val')
+      blk = proc {}
+      expect( Flexibility::GET_UNBOUND_METHOD ).to receive(:call) do |kklass,&bblk| 
+        expect(kklass).to be(klass)
+        expect(bblk).to be(blk)
+      end.and_return(return_val)
+      expect( klass.transform(&blk) ).to be(return_val)
     end
   end
 
+
   describe '#default' do
-    def call meth, *args, &blk
-      Flexibility::GET_UNBOUND_METHOD[klass, meth].bind(instance).call(*args, &blk)
+    it "returns an UnboundMethod of the class" do
+      um1 = klass.default {} 
+      expect(um1).to be_instance_of(UnboundMethod)
+      expect(um1.owner).to be(klass)
+      um2 = klass.default 0 
+      expect(um2).to be_instance_of(UnboundMethod)
+      expect(um2.owner).to be(klass)
     end
-    describe "when called with a block, returns a proc which" do
+    describe "when called with a block, returns a UnboundMethod which" do
       it "returns any non-nil value given it as initial argument without calling the block" do
         ix = 0
-        expect( call( klass.default { ix += 1 }, 7) ).to eq(7)
-        expect( call( klass.default { ix += 1 }, false) ).to eq(false)
+        expect( run( klass.default { ix += 1 }, 7) ).to eq(7)
+        expect( run( klass.default { ix += 1 }, false) ).to eq(false)
         expect(ix).to eq(0)
       end
       it "calls the block with the other arguments when given nil as initial argument" do
@@ -38,58 +96,81 @@ describe Flexibility do
         check_args = lambda do |*expected|
           lambda { |*actual| _.expect(actual).to _.eq(expected); 5 }
         end
-        expect( call( klass.default(&check_args[]), nil ) ).to eq(5)
-        expect( call( klass.default(&check_args[1,2,3]), nil, 1, 2, 3) ).to eq(5)
+        expect( run( klass.default(&check_args[]) ) ).to eq(5)
+        expect( run( klass.default(&check_args[1,2,3]), nil, 1, 2, 3) ).to eq(5)
       end
       it "calls the original block with whatever block is given at call time" do
         _ = self
-        expect( call( klass.default { |*args,&blk| nil }, nil) ).to eq(nil)
-        expect( call( klass.default { |*args,&blk| blk[] }, nil) { :foo }).to eq(:foo)
+        blk = proc {}
+        expect( run( klass.default { |*args,&bblk| bblk }, &blk) ).to eq(blk)
       end
-      it "binds the block to whatever object the return proc is bound to" do
-        p = klass.default { self }
-        expect( call(p, nil) ).to eq(instance)
-        expect( call(p, nil,1,2,3) ).to eq(instance)
+      it "binds the block to whatever object the return UnboundMethod is bound to" do
+        um = klass.default { self }
+        i0 = klass.new
+        i1 = klass.new
+        expect( um.bind(i0).call() ).to eq(i0)
+        expect( um.bind(i1).call(nil) ).to eq(i1)
       end
     end
-    describe "when called with a single argument, returns a proc which" do
+    describe "when called with a single argument, returns a UnboundMethod which" do
       it "returns any non-nil value given it as initial argument" do
-        expect(klass.default( 5 ).call(7)).to eq(7)
-        expect(klass.default( 5 ).call(false)).to eq(false)
+        expect( run(klass.default( 5 ), 7) ).to eq(7)
+        expect( run(klass.default( 5 ), false) ).to eq(false)
       end
       it "returns the argument when given nil as initial argument" do
-        expect(klass.default( 5 ).call()).to eq(5)
-        expect(klass.default( 5 ).call(nil)).to eq(5)
+        expect( run(klass.default( 5 )) ).to eq(5)
+        expect( run(klass.default( 5 ), nil,1,2,3) ).to eq(5)
       end
     end
   end
 
   describe '#required' do
-    it 'returns a proc that raises an error if given nil as an initial argument' do
-      expect { klass.required[] }.to raise_error(ArgumentError)
-      expect { klass.required[nil] }.to raise_error(ArgumentError)
+    it "returns an UnboundMethod of the class" do
+      um1 = klass.required
+      expect(um1).to be_instance_of(UnboundMethod)
+      expect(um1.owner).to be(klass)
     end
-    it 'returns a proc that returns its initial argument if non-nil' do
-      expect( klass.required[5] ).to eq(5)
-      expect( klass.required[false] ).to eq(false)
+    describe "the returned UnboundMethod" do
+      it 'raises an error if given nil as an initial argument' do
+        expect { run( klass.required ) }.to raise_error(ArgumentError)
+        expect { run( klass.required, nil ) }.to raise_error(ArgumentError)
+      end
+      it 'returns its initial argument if non-nil' do
+        expect( run( klass.required, 5) ).to eq(5)
+        expect( run( klass.required, false) ).to eq(false)
+      end
     end
   end
 
   describe '#validate' do
-    it "returns a proc that returns the initial argument if the block returns truthy on it" do
-      expect( klass.validate { true }[ 7 ] ).to eq( 7 )
-      expect( klass.validate { true }[ nil ] ).to be( nil )
-      expect( klass.validate { true }[ false ] ).to eq( false )
+    it "returns an UnboundMethod of the class" do
+      um1 = klass.validate {}
+      expect(um1).to be_instance_of(UnboundMethod)
+      expect(um1.owner).to be(klass)
     end
-    it "returns a proc that raises an error if the block returns falsy on the initial argument" do
-      expect{ klass.validate { false }[ 7 ] }.to raise_error(ArgumentError)
-      expect{ klass.validate { false }[ nil ] }.to raise_error(ArgumentError)
-      expect{ klass.validate { false }[ false ] }.to raise_error(ArgumentError)
-    end
-    it "returns a proc that passes all its arguments to the given block" do
-      _ = self
-      klass.validate { |*args| _.expect(args).to _.eq([]) ; true }[] 
-      klass.validate { |*args| _.expect(args).to _.eq([1,2,3,4,5,6]) ; true }[1,2,3,4,5,6] 
+    describe "the returned UnboundMethod" do
+      it "returns the initial argument if the block returns truthy on it" do
+        expect( run( klass.validate { true }, 7 ) ).to eq( 7 )
+        expect( run( klass.validate { true } ) ).to be( nil )
+        expect( run( klass.validate { true }, nil ) ).to be( nil )
+        expect( run( klass.validate { true }, false ) ).to eq( false )
+      end
+      it "raises an error if the block returns falsy on the initial argument" do
+        expect{ run( klass.validate { false }, 7 ) }.to raise_error(ArgumentError)
+        expect{ run( klass.validate { false } ) }.to raise_error(ArgumentError)
+        expect{ run( klass.validate { false }, nil ) }.to raise_error(ArgumentError)
+        expect{ run( klass.validate { false }, false ) }.to raise_error(ArgumentError)
+      end
+      it "passes all its arguments to the given block" do
+        _ = self
+        run( klass.validate { |*args| _.expect(args).to _.eq([]) ; true } )
+        run( klass.validate { |*args| _.expect(args).to _.eq([1,2,3,4,5,6]) ; true }, 1,2,3,4,5,6)
+      end
+      it "passes its bound block to the given block" do
+        _ = self
+        blk = proc {}
+        run( klass.validate { |&bblk| _.expect(bblk).to _.be(blk) ; true }, &blk )
+      end
     end
   end
 
@@ -101,7 +182,7 @@ describe Flexibility do
       instance.reflect_options(*given)
     end
 
-    it 'applies a hash-of-procs to a array-of-values to get a hash-of-results' do
+    it 'applies a hash-of-callbacks to a array-of-values to get a hash-of-results' do
       expect(options(
         ["one", "two", "three"], 
         foo: tag[:first], 
@@ -113,7 +194,7 @@ describe Flexibility do
         baz: [:third, "three"]
       )
     end
-    it 'applies the values from a trailing hash in an array-of-values with to their corresponding procs' do
+    it 'applies the values from a trailing hash in an array-of-values with to their corresponding callbacks' do
       expect(options(
         [ "one", { bar: "two", baz: "three" } ], 
         foo: tag[:first], 
@@ -125,7 +206,7 @@ describe Flexibility do
         baz: [:third, "three"]
       )
     end
-    it "applies the procs from a hash-of-array-of-procs in order to the given value" do
+    it "applies the callbacks from a hash-of-array-of-callbacks in order to the given value" do
       expect(options(
         ["one", "two", "three"], 
         foo: [ tag[:first1], tag[:first2], tag[:first3] ],
@@ -137,7 +218,7 @@ describe Flexibility do
         baz: [:third, "three"]
       )
     end
-    it "calls the procs that don't have a corresponding value" do
+    it "calls the callbacks that don't have a corresponding value" do
       expect(options(
         ["one"], 
         foo: tag[:first], 
@@ -221,7 +302,7 @@ describe Flexibility do
 
       expect(ix).to eq(5)
     end
-    it "raises an error if the array-of-values is longer than the hash-of-procs" do
+    it "raises an error if the array-of-values is longer than the hash-of-callbacks" do
       expect do
         options(
           ["one", "two", "three", "four", "five"], 
@@ -253,7 +334,30 @@ describe Flexibility do
 
       expect(ix).to eq(5)
     end
-    it "allows you to substitute anything responding to #to_proc for the procs" do
+    it "allows you to use unbound methods for the callbacks" do
+      one   = double('one')
+      one_  = double('one_')
+      one__ = double('one__')
+      two   = double('two')
+      two_  = double('two_')
+      
+      _ = self
+      klass.class_eval do
+        define_method(:first)  { |arg| _.expect(arg).to _.be(one)  ; one_ }
+        define_method(:second) { |arg| _.expect(arg).to _.be(one_) ; one__ }
+        define_method(:third)  { |arg| _.expect(arg).to _.be(two)  ; two_ }
+      end
+
+      expect(options(
+        [one, two], 
+        foo: [ klass.instance_method(:first), klass.instance_method(:second) ],
+        baz: klass.instance_method(:third)
+      )).to eq(
+        foo: one__,
+        baz: two_
+      )
+    end
+    it "allows you to substitute anything responding to #to_proc for the callbacks" do
       one   = double('one')
       one_  = double('one_')
       one__ = double('one__')
