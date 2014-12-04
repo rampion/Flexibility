@@ -51,12 +51,12 @@ module Flexibility
   #   - an argument containing a constant value
   #   - a block to be bound to the instance and run as needed
   #
-  # With the block form, not only do you have access to instance variables,
-  # but you also have access to
+  # With the block form, you also have access to
   #
+  #   - `self` and the instance variables of the bound instance
   #   - the keyword associated with the argument
   #   - the hash of options defined thus far
-  #   - the original argument value (if an earlier transformation `nil`'ed it out)
+  #   - the original argument value (useful if an earlier transformation `nil`'ed it out)
   #   - the block bound to the method invocation
   #
   # For example, given the method `dimensions`:
@@ -146,6 +146,49 @@ module Flexibility
     end
   end
 
+  # `#required` allows you to throw an exception if an argument is not given.
+  #
+  # `#required` returns an `UnboundMethod` that simply checks that its first
+  # parameter is non-`nil`:
+  #
+  #   - if the parameter is `nil`, it raises an `ArgumentError`
+  #   - if the parameter is not `nil`, it returns it.
+  #
+  # For example, 
+  #
+  # ```ruby
+  # class Banner
+  #   include Flexibility
+  #
+  #   define :area, {
+  #     width: required,
+  #     height: required
+  #   } do |width,height,_| 
+  #     width * height
+  #   end
+  # end
+  # ```
+  #
+  # We can specify (or not) any of the arguments to see the checking in action
+  #
+  #     irb> def self.show_error ; yield ; rescue => e ; [ e.class, e.message ] ; end
+  #     irb> banner = Banner.new
+  #     irb> show_error { banner.area }
+  #     => [ ArgumentError, "Required argument :width not given" ]
+  #     irb> show_error { banner.area :width => 5 }
+  #     => [ ArgumentError, "Required argument :height not given" ]
+  #     irb> show_error { banner.area :height => 5 }
+  #     => [ ArgumentError, "Required argument :width not given" ]
+  #     irb> show_error { banner.area :width => 6, :height => 5 }
+  #     => 30
+  #
+  # Note that `#required` specifically checks that the argument is non-nil, not
+  # *unspecified*, so explicitly given `nil` arguments will still raise an
+  # error:
+  #
+  #     irb> show_error { banner.area :width => nil, :height => 5 }
+  #     => [ ArgumentError, "Required argument :width not given" ]
+  #
   # @return [UnboundMethod]
   #   `UnboundMethod` which returns first parameter given if non-`nil`,
   #   otherwise raises `ArgumentError`
@@ -160,6 +203,110 @@ module Flexibility
     end
   end
 
+  # `#validate` allows you to throw an exception if the given block returns
+  # falsy.
+  #
+  # You pass `#validate` a block which will be invoked each time the
+  # returned `UnboundMethod` is called.
+  #
+  #   - if the block returns true, the `UnboundMethod` will return the first parameter
+  #   - if the block returns false, the `UnboundMethod` will raise an `ArgumentError`
+  #
+  # Within the block, you have access to
+  #
+  #   - `self` and the instance variables of the bound instance
+  #   - the keyword associated with the argument
+  #   - the hash of options defined thus far
+  #   - the original argument value (useful if an earlier transformation `nil`'ed it out)
+  #   - the block bound to the method invocation
+  #
+  # For example, given the method ``:
+  #
+  # ```ruby
+  # class Converter
+  #   include Flexibility
+  #
+  #   define :polar_to_cartesian, {
+  #     radius: validate { |r| 0 <= r },
+  #     theta:  validate { |t| 0 <= t && t < Math::PI },
+  #     phi:    validate { |p| 0 <= p && p < 2*Math::PI }
+  #   } do |r,t,p,_|
+  #     { x: r * Math.sin(t) * Math.cos(p), 
+  #       y: r * Math.sin(t) * Math.sin(p),
+  #       z: r * Math.cos(t)
+  #     }
+  #   end
+  # end
+  # ```
+  #
+  #     irb> def self.show_error ; yield ; rescue => e ; [ e.class, e.message ] ; end
+  #     irb> conv = Converter.new
+  #     irb> show_error { conv.polar_to_cartesian -1, 0, 0 }
+  #     => [ ArgumentError, "Invalid value -1 given for argument :radius" ]
+  #     irb> show_error { conv.polar_to_cartesian 0, -1, 0 }
+  #     => [ ArgumentError, "Invalid value -1 given for argument :theta" ]
+  #     irb> show_error { conv.polar_to_cartesian 0, 0, -1 }
+  #     => [ ArgumentError, "Invalid value -1 given for argument :phi" ]
+  #     irb> show_error { conv.polar_to_cartesian 0, 0, 0 }
+  #     => { x: 0, y: 0, z: 0 }
+  #
+  #
+  # And just to show how you can access instance variables,
+  # earlier parameters, and the bound block with `#validate`...
+  #
+  # ```ruby
+  # class Silly
+  #   include Flexibility
+  #
+  #   def initialize(min,max)
+  #     @min,@max = min,max
+  #   end
+  #
+  #   in_range = validate { |x,&blk| @min <= blk[x] && blk[x] <= @max }
+  #
+  #   define :check, {
+  #     lo:     in_range,
+  #     hi:     [ 
+  #       in_range, 
+  #       validate { |x,key,opts,&blk| blk[opts[:lo]] <= blk[x] } 
+  #     ],
+  #   } { |opts| opts }
+  # end
+  # ```
+  #
+  #     irb> silly = Silly.new(3,5)
+  #     irb> show_error { silly.check("hi", "salutations") { |s| s.length } }
+  #     => [ ArgumentError, 'Invalid value "hi" given for argument :lo' ]
+  #     irb> show_error { silly.check("hey", "salutations") { |s| s.length } }
+  #     => [ ArgumentError, 'Invalid value "salutations" given for argument :hi' ]
+  #     irb> show_error { silly.check("hello", "hey") { |s| s.length } }
+  #     => [ ArgumentError, 'Invalid value "hey" given for argument :hi' ]
+  #     irb> show_error { silly.check("hey", "hello") { |s| s.length } }
+  #     => { lo: "hey", hi: "hello" }
+  #
+  # Note that the `yield` keyword inside the block bound to `#validate` won't be
+  # able to access the block bound to the method invocation, as `yield` is
+  # lexically scoped (like a local variable).
+  #
+  # ```ruby
+  # module YieldExample
+  #   def self.create
+  #     Class.new do
+  #       include Flexibility
+  #       define :run, {
+  #         using_yield:  validate { |val,key|      puts [key, yield].inspect ; true },
+  #         using_block:  validate { |val,key,&blk| puts [key, blk[]].inspect ; true }
+  #       } { |opts| opts }
+  #     end.new
+  #   end
+  # end
+  # ```
+  #
+  #     irb> YieldExample.create { :class_creation }.run(1,2) { :method_invocation }
+  #     [:using_yield, :class_creation]
+  #     [:using_block, :method_invocation]
+  #     => { using_yield: 1, using_block: 2 }
+  #
   # @yield
   #   arguments and block given to returned `UnboundMethod`,
   #   (bound to same value of `self` as returned proc)
@@ -182,6 +329,93 @@ module Flexibility
     end
   end
 
+  # `#transform` allows you to lift an arbitrary code block into an
+  # `UnboundMethod`.
+  #
+  # You pass `#transform` a block which will be invoked each time the returned
+  # `UnboundMethod` is called.  Within the block, you have access to
+  #
+  #   - `self` and the instance variables of the bound instance
+  #   - the keyword associated with the argument
+  #   - the hash of options defined thus far
+  #   - the original argument value (useful if an earlier transformation `nil`'ed it out)
+  #   - the block bound to the method invocation
+  #
+  # The return value of the `UnboundMethod` will be completely determined by the
+  # return value of the block bound to the call of `#transform`.
+  #
+  # ```ruby
+  # require 'date'
+  # class Timer
+  #   include Flexibility
+  #
+  #   to_epoch = transform do |t|
+  #     case t
+  #     when String   ; DateTime.parse(t).to_time.to_i
+  #     when DateTime ; t.to_time.to_i
+  #     else          ; t.to_i if t.respond_to? :to_i
+  #     end
+  #   end
+  #
+  #   define :elapsed, { 
+  #     start: to_epoch,
+  #     stop:  to_epoch
+  #   } do |start, stop, _|
+  #     stop - start
+  #   end
+  # end
+  # ```
+  #
+  #     irb> timer = Timer.new
+  #     irb> timer.elapsed "1984-06-07", "1989-06-16"
+  #     => 158544000
+  #     irb> (timer.elapsed DateTime.now, (DateTime.now + 365)) / 60
+  #     => 525600
+  #
+  # And just to show how you can access instance variables,
+  # earlier parameters, and the bound block with `#transform`...
+  #
+  # ```ruby
+  # class Brawl
+  #   include Flexibility
+  #
+  #   def initialize base
+  #     @base = base
+  #   end
+  #
+  #   define :foo, {
+  #     sven:  transform { |x,&blk|   [x, blk[@base] ]      },
+  #     polo:  transform { |x,_,opts| [x, opts[:sven].last] }
+  #   } { |opts| opts }
+  # end
+  # ```
+  #
+  #     irb> brawl = Brawl.new( "i'm the map" )
+  #     irb> brawl.foo( sven: 3, polo: "hi" ) { |msg| puts msg ; msg.length }
+  #     i'm the map
+  #     => { sven: [ 3, 11 ], polo: [ "hi", 11 ] }
+  #
+  # Note that the `yield` keyword inside the block bound to `#transform` won't be
+  # able to access the block bound to the method invocation, as `yield` is
+  # lexically scoped (like a local variable).
+  #
+  # ```ruby
+  # module YieldExample
+  #   def self.create
+  #     Class.new do
+  #       include Flexibility
+  #       define :run, {
+  #         using_yield:  transform { |val|      yield(val) },
+  #         using_block:  transform { |val,&blk| blk[val] }
+  #       } { |opts| opts }
+  #     end.new
+  #   end
+  # end
+  # ```
+  #
+  #     irb> YieldExample.create { |val| [:class_creation, val] }.run(1,2) { |val| [ :method_invocation, val] }
+  #     => { using_yield: [:class_creation, 1], using_block: [:method_invocation,2] }
+  #
   # @yield
   #   arguments and block given to returned `UnboundMethod`,
   #   (bound to same value of `self` as returned proc)
