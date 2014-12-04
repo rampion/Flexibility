@@ -2,25 +2,25 @@ require_relative '../../lib/flexibility'
 
 describe Flexibility do
 
-  describe '::GET_UNBOUND_METHOD' do
+  describe '::DEF_UNBOUND_METHOD' do
     let (:klass) { klass = Class.new { def self.inspect ; "#<klass>" ; end } }
     let (:instance) { klass.new.instance_eval { def inspect ; "#<instance>" ; end ; self }  }
 
     it 'returns the block as an UnboundMethod of the given class' do
-      um = Flexibility::GET_UNBOUND_METHOD.(klass) {}
+      um = Flexibility::DEF_UNBOUND_METHOD.(klass) {}
       expect(um).to be_instance_of(UnboundMethod)
       expect(um.owner).to be(klass)
     end
     it 'adds no instance methods to the given class' do
       before = klass.instance_methods.dup
-      um = Flexibility::GET_UNBOUND_METHOD.(klass) {}
+      um = Flexibility::DEF_UNBOUND_METHOD.(klass) {}
       expect(klass.instance_methods).to eq(before)
     end
     describe 'the returned UnboundMethod' do
       it 'sets self to the bound instance when called' do
         _ = self
         run = false
-        um = Flexibility::GET_UNBOUND_METHOD.(klass) { _.expect( self ).to _.be( _.instance ) ; run = true }
+        um = Flexibility::DEF_UNBOUND_METHOD.(klass) { _.expect( self ).to _.be( _.instance ) ; run = true }
         um.bind(instance).call()
         expect( run ).to be(true)
       end
@@ -28,7 +28,7 @@ describe Flexibility do
         args = [ :one, :two, :three ]
         _ = self
         run = false
-        um = Flexibility::GET_UNBOUND_METHOD.(klass) { |*given| _.expect( given ).to _.eq( args ) ; run = true }
+        um = Flexibility::DEF_UNBOUND_METHOD.(klass) { |*given| _.expect( given ).to _.eq( args ) ; run = true }
         um.bind(instance).call(*args)
         expect( run ).to be(true)
       end
@@ -36,7 +36,7 @@ describe Flexibility do
         blk = proc {}
         _ = self
         run = false
-        um = Flexibility::GET_UNBOUND_METHOD.(klass) { |&given| _.expect( given ).to _.be( blk ) ; run = true }
+        um = Flexibility::DEF_UNBOUND_METHOD.(klass) { |&given| _.expect( given ).to _.be( blk ) ; run = true }
         um.bind(instance).call(&blk)
         expect( run ).to be(true)
       end
@@ -66,7 +66,7 @@ describe Flexibility do
     it 'returns the block as an UnboundMethod' do
       return_val = double('return-val')
       blk = proc {}
-      expect( Flexibility::GET_UNBOUND_METHOD ).to receive(:call) do |kklass,&bblk| 
+      expect( Flexibility::DEF_UNBOUND_METHOD ).to receive(:call) do |kklass,&bblk| 
         expect(kklass).to be(klass)
         expect(bblk).to be(blk)
       end.and_return(return_val)
