@@ -1,9 +1,11 @@
 # {include:file:README.md}
+#
+# @author Noah Luck Easterly <noah.easterly@gmail.com>
 module Flexibility
 
   # helper for creating UnboundMethods
   GET_UNBOUND_METHOD = begin
-    count = 0 
+    count = 0
     lambda do |klass, body|
       klass.class_eval do
         name = "#unbound_method_#{count += 1}"
@@ -14,6 +16,8 @@ module Flexibility
       end
     end
   end
+
+  # @!group Argument Callback Generators
 
   # `#default` allows you to specify a default value for an argument.
   #
@@ -83,6 +87,21 @@ module Flexibility
   #     irb> YieldExample.create { :class_creation }.run { :method_invocation }
   #     => { using_yield: :class_creation, using_block: :method_invocation }
   #
+  # @param value
+  #   to be returned by returned proc if it is given `nil` as first parameter
+  # @yield
+  #   remaining arguments and block given to returned proc,
+  #   called if it was given `nil` as first parameter
+  #   (bound to same value of `self` as returned proc)
+  # @yieldreturn
+  #   to be returned by returned proc
+  # @raise  [ArgumentError]
+  #   if given too many arguments
+  # @return [Proc]
+  #   proc which returns first parameter given if non-`nil`, otherwise
+  #   yields to block bound to `#default` or returns parameter given to
+  #   `#default`
+  # @see #define
   def default(*args,&cb)
     if args.length != (cb ? 0 : 1)
       raise(ArgumentError, "Wrong number of arguments to `default` (expects 0 with a block, or 1 without)", caller)
@@ -115,6 +134,8 @@ module Flexibility
     blk
   end
 
+  # @!endgroup
+
   # private class instance methods?
   def define method_name, expected, &method_body
     if method_body.arity < 0
@@ -122,7 +143,7 @@ module Flexibility
     elsif method_body.arity > expected.length + 1
       raise(ArgumentError, "More positional arguments in method body than specified in expected arguments", caller)
     end
-    
+
     # create an UnboundMethod from method_body so we can
     # 1. set `self`
     # 2. pass it arguments
@@ -149,7 +170,7 @@ module Flexibility
         end
       end
     end
-      
+
     # assume all but the last block argument should capture positional
     # arguments
     keys = expected_ums.keys[ 0 ... method_um.arity - 1]
