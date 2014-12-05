@@ -45,9 +45,9 @@ describe Flexibility do
 
   let (:klass) do
     klass = Class.new do
-      include Flexibility 
-      def self.inspect 
-        "#<klass>" 
+      include Flexibility
+      def self.inspect
+        "#<klass>"
       end
       class <<self
         # make the instance methods public for testing purposes
@@ -66,7 +66,7 @@ describe Flexibility do
     it 'returns the block as an UnboundMethod' do
       return_val = double('return-val')
       blk = proc {}
-      expect( Flexibility ).to receive(:create_unbound_method) do |kklass,&bblk| 
+      expect( Flexibility ).to receive(:create_unbound_method) do |kklass,&bblk|
         expect(kklass).to be(klass)
         expect(bblk).to be(blk)
       end.and_return(return_val)
@@ -77,10 +77,10 @@ describe Flexibility do
 
   describe '#default' do
     it "returns an UnboundMethod of the class" do
-      um1 = klass.default {} 
+      um1 = klass.default {}
       expect(um1).to be_instance_of(UnboundMethod)
       expect(um1.owner).to be(klass)
-      um2 = klass.default 0 
+      um2 = klass.default 0
       expect(um2).to be_instance_of(UnboundMethod)
       expect(um2.owner).to be(klass)
     end
@@ -185,11 +185,11 @@ describe Flexibility do
 
       it 'applies a hash-of-callbacks to a array-of-values to get a hash-of-results' do
         expect(options(
-          ["one", "two", "three"], 
-          foo: tag[:first], 
-          bar: tag[:second], 
+          ["one", "two", "three"],
+          foo: tag[:first],
+          bar: tag[:second],
           baz: tag[:third]
-        )).to eq( 
+        )).to eq(
           foo: [:first, "one"],
           bar: [:second, "two"],
           baz: [:third, "three"]
@@ -197,7 +197,7 @@ describe Flexibility do
       end
       it "doesn't include nil values in the output" do
         expect(options(
-          [nil, "two", { baz: nil }], 
+          [nil, "two", { baz: nil }],
           foo: [],
           bar: proc { nil },
           baz: [],
@@ -205,7 +205,7 @@ describe Flexibility do
       end
       it "keeps keywords in the same order as expected" do
         expect(options(
-          [5, 4, {quux: 0, baz: 1, bar: 2, foo: 3}], 
+          [5, 4, {quux: 0, baz: 1, bar: 2, foo: 3}],
           a:[],
           b:[],
           foo: [],
@@ -223,11 +223,11 @@ describe Flexibility do
       end
       it 'applies the values from a trailing hash in an array-of-values with to their corresponding callbacks' do
         expect(options(
-          [ "one", { bar: "two", baz: "three" } ], 
-          foo: tag[:first], 
-          bar: tag[:second], 
+          [ "one", { bar: "two", baz: "three" } ],
+          foo: tag[:first],
+          bar: tag[:second],
           baz: tag[:third]
-        )).to eq( 
+        )).to eq(
           foo: [:first, "one"],
           bar: [:second, "two"],
           baz: [:third, "three"]
@@ -235,11 +235,11 @@ describe Flexibility do
       end
       it "applies the callbacks from a hash-of-array-of-callbacks in order to the given value" do
         expect(options(
-          ["one", "two", "three"], 
+          ["one", "two", "three"],
           foo: [ tag[:first1], tag[:first2], tag[:first3] ],
           bar: [ tag[:second] ],
           baz: tag[:third]
-        )).to eq( 
+        )).to eq(
           foo: [:first3, [:first2, [:first1, "one"]]],
           bar: [:second, "two"],
           baz: [:third, "three"]
@@ -247,11 +247,11 @@ describe Flexibility do
       end
       it "calls the callbacks that don't have a corresponding value" do
         expect(options(
-          ["one"], 
-          foo: tag[:first], 
-          bar: tag[:second], 
+          ["one"],
+          foo: tag[:first],
+          bar: tag[:second],
           baz: tag[:third]
-        )).to eq( 
+        )).to eq(
           foo: [:first, "one"],
           bar: [:second, nil],
           baz: [:third, nil]
@@ -260,11 +260,11 @@ describe Flexibility do
       it "calls each proc with its key" do
         with_key = proc { |v,k| [v,k] }
         expect(options(
-          ["one", "two", "three"], 
-          foo: with_key, 
-          bar: with_key, 
+          ["one", "two", "three"],
+          foo: with_key,
+          bar: with_key,
           baz: with_key
-        )).to eq( 
+        )).to eq(
           foo: ["one", :foo],
           bar: ["two", :bar],
           baz: ["three", :baz]
@@ -288,8 +288,8 @@ describe Flexibility do
         end
 
         expect(options(
-          ["one", "two", "three"], 
-          foo: callback, 
+          ["one", "two", "three"],
+          foo: callback,
           bar: [ callback, callback ],
           baz: callback
         )).to eq(
@@ -299,7 +299,7 @@ describe Flexibility do
         )
         expect(ix).to eq(4)
       end
-      it "calls each proc with the original value" do 
+      it "calls each proc with the original value" do
         ix = 0
         _ = self
         callback = proc do |val,_key,_partial,orig|
@@ -317,7 +317,7 @@ describe Flexibility do
         end
 
         expect(options(
-          ["one", "two", "three"], 
+          ["one", "two", "three"],
           foo: [ callback, callback ],
           bar: [ callback, callback ],
           baz: callback
@@ -332,9 +332,9 @@ describe Flexibility do
       it "raises an error if the array-of-values is longer than the hash-of-callbacks" do
         expect do
           options(
-            ["one", "two", "three", "four", "five"], 
-            foo: tag[:first], 
-            bar: tag[:second], 
+            ["one", "two", "three", "four", "five"],
+            foo: tag[:first],
+            bar: tag[:second],
             baz: tag[:third]
           )
         end.to raise_error( ArgumentError )
@@ -349,7 +349,7 @@ describe Flexibility do
         end
 
         expect(options(
-          ["one", "two", "three"], 
+          ["one", "two", "three"],
           foo: [ callback, callback ],
           bar: [ callback, callback ],
           baz: callback
@@ -367,7 +367,7 @@ describe Flexibility do
         one__ = double('one__')
         two   = double('two')
         two_  = double('two_')
-        
+
         _ = self
         klass.class_eval do
           define_method(:first)  { |arg| _.expect(arg).to _.be(one)  ; one_ }
@@ -376,7 +376,7 @@ describe Flexibility do
         end
 
         expect(options(
-          [one, two], 
+          [one, two],
           foo: [ klass.instance_method(:first), klass.instance_method(:second) ],
           baz: klass.instance_method(:third)
         )).to eq(
@@ -396,7 +396,7 @@ describe Flexibility do
         expect(two).to receive(:third).and_return(two_)
 
         expect(options(
-          [one, two], 
+          [one, two],
           foo: [ :first, :second ],
           baz: :third
         )).to eq(

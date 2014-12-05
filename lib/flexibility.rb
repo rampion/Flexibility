@@ -138,9 +138,9 @@ module Flexibility
       raise(ArgumentError, "Wrong number of arguments to `default` (expects 0 with a block, or 1 without)", caller)
     elsif cb
       um = Flexibility::create_unbound_method(self, &cb)
-      Flexibility::create_unbound_method(self) do |*args, &blk| 
+      Flexibility::create_unbound_method(self) do |*args, &blk|
         val = args.shift
-        unless val.nil? 
+        unless val.nil?
           val
         else
           Flexibility::run_unbound_method(um,self,*args,&blk)
@@ -160,7 +160,7 @@ module Flexibility
   #   - if the parameter is `nil`, it raises an `ArgumentError`
   #   - if the parameter is not `nil`, it returns it.
   #
-  # For example, 
+  # For example,
   #
   # ```ruby
   # class Banner
@@ -169,7 +169,7 @@ module Flexibility
   #   define( :area,
   #     width: required,
   #     height: required
-  #   ) do |width,height,_| 
+  #   ) do |width,height,_|
   #     width * height
   #   end
   # end
@@ -237,7 +237,7 @@ module Flexibility
   #     theta:  validate { |t| 0 <= t && t < Math::PI },
   #     phi:    validate { |p| 0 <= p && p < 2*Math::PI }
   #   ) do |r,t,p,_|
-  #     { x: r * Math.sin(t) * Math.cos(p), 
+  #     { x: r * Math.sin(t) * Math.cos(p),
   #       y: r * Math.sin(t) * Math.sin(p),
   #       z: r * Math.cos(t)
   #     }
@@ -272,9 +272,9 @@ module Flexibility
   #
   #   define( :check,
   #     lo:     in_range,
-  #     hi:     [ 
-  #       in_range, 
-  #       validate { |x,key,opts,&blk| blk[opts[:lo]] <= blk[x] } 
+  #     hi:     [
+  #       in_range,
+  #       validate { |x,key,opts,&blk| blk[opts[:lo]] <= blk[x] }
   #     ],
   #   ) { |opts| opts }
   # end
@@ -406,7 +406,7 @@ module Flexibility
   #     irb> silly.tag_with_base( fst: 3, snd: "hi" ) { |msg| puts msg ; msg.length }
   #     base value
   #     => { fst: [ 3, 10 ], snd: [ "hi", 10 ] }
-  #     
+  #
   #
   # Note that the `yield` keyword inside the block bound to {#transform} won't be
   # able to access the block bound to the method invocation, as `yield` is
@@ -624,10 +624,10 @@ module Flexibility
       end
 
       Flexibility::run_unbound_method(
-        method_um, 
-        self, 
-        *keys.map { |key| opts.delete key }.push( opts ).take( method_um.arity ), 
-        &blk 
+        method_um,
+        self,
+        *keys.map { |key| opts.delete key }.push( opts ).take( method_um.arity ),
+        &blk
       )
     end
   end
@@ -635,7 +635,7 @@ module Flexibility
   # When included, `Flexibility` adds all its instance methods as private class
   # methods of the including class:
   #
-  #     irb> c = Class.new 
+  #     irb> c = Class.new
   #     irb> before = c.private_methods
   #     irb> c.class_eval { include Flexibility }
   #     irb> c.private_methods - before
