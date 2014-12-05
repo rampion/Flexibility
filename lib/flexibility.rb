@@ -41,9 +41,9 @@ module Flexibility
 
   # @!group Argument Callback Generators
 
-  # `#default` allows you to specify a default value for an argument.
+  # {#default} allows you to specify a default value for an argument.
   #
-  # You can pass `#default` either
+  # You can pass {#default} either
   #
   #   - an argument containing a constant value
   #   - a block to be bound to the instance and run as needed
@@ -109,22 +109,26 @@ module Flexibility
   #     irb> YieldExample.create { :class_creation }.run { :method_invocation }
   #     => { using_yield: :class_creation, using_block: :method_invocation }
   #
-  # @param value
-  #   to be returned by returned `UnboundMethod` if it is given `nil` as first parameter
+  # @param default_val
+  #   if the returned `UnboundMethod` is called with `nil` as its first parameter,
+  #   it returns `default_val` (unless {#default} is called with a block)
   # @yield
-  #   remaining arguments and block given to returned `UnboundMethod`,
-  #   called if it was given `nil` as first parameter
-  #   (bound to same value of `self` as returned proc)
-  # @yieldreturn
-  #   to be returned by returned `UnboundMethod`
+  #   if the returned `UnboundMethod` is called with `nil` as its first parameter,
+  #   it returns the result of `yield` (unless {#default} is called with an
+  #   argument).
+  #
+  #   The block bound to {#default} receives the following parameters when called
+  #   by a method created with {#define}:
+  # @yieldparam key   [Symbol]  the key of the option currently being processed
+  # @yieldparam opts  [Hash]    the options hash thus far
+  # @yieldparam found [Object]  the original value passed to the method for this option
+  # @yieldparam &blk  [Proc]    the block passed to the method
+  # @yieldparam self  [keyword]  bound to the same instance that the method is invoked on
   # @raise  [ArgumentError]
-  #   if given too many arguments
-  # @return [UnboundMethod]
-  #   `UnboundMethod` which returns first parameter given if non-`nil`,
-  #   otherwise yields to block bound to `#default` or returns parameter given
-  #   to `#default`
+  #   unless called with a block and no args, or called with no block and one arg
+  # @return [UnboundMethod(val,key,opts,found,&blk)]
   # @see #define
-  # @!parse def default(value) ; end
+  # @!parse def default(default_val) ; end
   def default(*args,&cb)
     if args.length != (cb ? 0 : 1)
       raise(ArgumentError, "Wrong number of arguments to `default` (expects 0 with a block, or 1 without)", caller)
@@ -144,9 +148,9 @@ module Flexibility
     end
   end
 
-  # `#required` allows you to throw an exception if an argument is not given.
+  # {#required} allows you to throw an exception if an argument is not given.
   #
-  # `#required` returns an `UnboundMethod` that simply checks that its first
+  # {#required} returns an `UnboundMethod` that simply checks that its first
   # parameter is non-`nil`:
   #
   #   - if the parameter is `nil`, it raises an `ArgumentError`
@@ -180,14 +184,14 @@ module Flexibility
   #     irb> show_error { banner.area :width => 6, :height => 5 }
   #     => 30
   #
-  # Note that `#required` specifically checks that the argument is non-nil, not
+  # Note that {#required} specifically checks that the argument is non-nil, not
   # *unspecified*, so explicitly given `nil` arguments will still raise an
   # error:
   #
   #     irb> show_error { banner.area :width => nil, :height => 5 }
   #     => [ ArgumentError, "Required argument :width not given" ]
   #
-  # @return [UnboundMethod]
+  # @return [UnboundMethod(val,key,opts,found,&blk)]
   #   `UnboundMethod` which returns first parameter given if non-`nil`,
   #   otherwise raises `ArgumentError`
   # @see #define
@@ -201,10 +205,10 @@ module Flexibility
     end
   end
 
-  # `#validate` allows you to throw an exception if the given block returns
+  # {#validate} allows you to throw an exception if the given block returns
   # falsy.
   #
-  # You pass `#validate` a block which will be invoked each time the
+  # You pass {#validate} a block which will be invoked each time the
   # returned `UnboundMethod` is called.
   #
   #   - if the block returns true, the `UnboundMethod` will return the first parameter
@@ -250,7 +254,7 @@ module Flexibility
   #
   #
   # And just to show how you can access instance variables,
-  # earlier parameters, and the bound block with `#validate`...
+  # earlier parameters, and the bound block with {#validate}...
   #
   # ```ruby
   # class Silly
@@ -282,7 +286,7 @@ module Flexibility
   #     irb> show_error { silly.check("hey", "hello") { |s| s.length } }
   #     => { lo: "hey", hi: "hello" }
   #
-  # Note that the `yield` keyword inside the block bound to `#validate` won't be
+  # Note that the `yield` keyword inside the block bound to {#validate} won't be
   # able to access the block bound to the method invocation, as `yield` is
   # lexically scoped (like a local variable).
   #
@@ -306,14 +310,20 @@ module Flexibility
   #     => { using_yield: 1, using_block: 2 }
   #
   # @yield
-  #   arguments and block given to returned `UnboundMethod`,
-  #   (bound to same value of `self` as returned proc)
+  #   The block bound to {#validate} receives the following parameters when
+  #   called by a method created with {#define}:
+  # @yieldparam val   [Object]  the value of the option currently being processed
+  # @yieldparam key   [Symbol]  the key for the option currently being processed
+  # @yieldparam opts  [Hash]    the options hash thus far
+  # @yieldparam found [Object]  the original value passed to the method for this option
+  # @yieldparam &blk  [Proc]    the block passed to the method
+  # @yieldparam self  [keyword]  bound to the same instance that the method is invoked on
   # @yieldreturn [Boolean]
   #   indicates whether the returned `UnboundMethod` should
   #   return the first parameter or raise an `ArgumentError`.
-  # @return [UnboundMethod]
+  # @return [UnboundMethod(val,key,opts,found,&blk)]
   #   `UnboundMethod` which returns first parameter given if block
-  #   bound to `#validate` returns truthy on arguments/block given ,
+  #   bound to {#validate} returns truthy on arguments/block given ,
   #   raises `ArgumentError` otherwise.
   # @see #define
   def validate(&cb)
@@ -327,10 +337,10 @@ module Flexibility
     end
   end
 
-  # `#transform` allows you to lift an arbitrary code block into an
+  # {#transform} allows you to lift an arbitrary code block into an
   # `UnboundMethod`.
   #
-  # You pass `#transform` a block which will be invoked each time the returned
+  # You pass {#transform} a block which will be invoked each time the returned
   # `UnboundMethod` is called.  Within the block, you have access to
   #
   #   - `self` and the instance variables of the bound instance
@@ -340,7 +350,7 @@ module Flexibility
   #   - the block bound to the method invocation
   #
   # The return value of the `UnboundMethod` will be completely determined by the
-  # return value of the block bound to the call of `#transform`.
+  # return value of the block bound to the call of {#transform}.
   #
   # ```ruby
   # require 'date'
@@ -371,7 +381,7 @@ module Flexibility
   #     => 525600
   #
   # And just to show how you can access instance variables,
-  # earlier parameters, and the bound block with `#transform`...
+  # earlier parameters, and the bound block with {#transform}...
   #
   # ```ruby
   # class Brawl
@@ -393,7 +403,7 @@ module Flexibility
   #     i'm the map
   #     => { sven: [ 3, 11 ], polo: [ "hi", 11 ] }
   #
-  # Note that the `yield` keyword inside the block bound to `#transform` won't be
+  # Note that the `yield` keyword inside the block bound to {#transform} won't be
   # able to access the block bound to the method invocation, as `yield` is
   # lexically scoped (like a local variable).
   #
@@ -415,12 +425,18 @@ module Flexibility
   #     => { using_yield: [:class_creation, 1], using_block: [:method_invocation,2] }
   #
   # @yield
-  #   arguments and block given to returned `UnboundMethod`,
-  #   (bound to same value of `self` as returned proc)
+  #   The block bound to {#transform} receives the following parameters when
+  #   called by a method created with {#define}:
+  # @yieldparam val   [Object]  the value of the option currently being processed
+  # @yieldparam key   [Symbol]  the key for the option currently being processed
+  # @yieldparam opts  [Hash]    the options hash thus far
+  # @yieldparam found [Object]  the original value passed to the method for this option
+  # @yieldparam &blk  [Proc]    the block passed to the method
+  # @yieldparam self  [keyword]  bound to the same instance that the method is invoked on
   # @yieldreturn
   #   value for returned `UnboundMethod` to return
-  # @return [UnboundMethod]
-  #   `UnboundMethod` created from block bound to `#transform`
+  # @return [UnboundMethod(val,key,opts,found,&blk)]
+  #   `UnboundMethod` created from block bound to {#transform}
   # @see #define
   def transform(&blk)
     Flexibility::create_unbound_method(self, &blk)
@@ -428,7 +444,14 @@ module Flexibility
 
   # @!endgroup
 
-  # private class instance methods?
+  # 
+  # @param method_name [Symbol]
+  # @param expected    [Hash]
+  # @yield 
+  # @see #default
+  # @see #required
+  # @see #validate
+  # @see #transform
   def define method_name, expected, &method_body
     if method_body.arity < 0
       raise(NotImplementedError, "Flexibility doesn't support splats in method definitions yet, sorry!", caller)
