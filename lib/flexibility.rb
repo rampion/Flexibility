@@ -470,7 +470,6 @@ module Flexibility
   #     c: []
   #   ) do |opts|
   #     opts.each { |k,v| puts "#{k}: #{v.inspect}" }
-  #     opts.length
   #   end
   #
   # end
@@ -481,19 +480,16 @@ module Flexibility
   #     a: 1
   #     b: 2
   #     c: 3
-  #     => 3
   #     irb> ex.run( c:1, a:2, b:3, d: 0 ) # all keyword arguments
   #     a: 2
   #     b: 3
   #     c: 1
   #     d: 0
-  #     => 4
   #     irb> ex.run( 7, 9, d: 18, c:11 ) # mixed keyword and positional arguments
   #     a: 7
   #     b: 9
   #     c: 11
   #     d: 18
-  #     => 4
   #
   # Positional arguments will override keyword arguments if both are given
   #
@@ -501,16 +497,21 @@ module Flexibility
   #     a: 10
   #     b: 20
   #     c: 30
-  #     => 3
   #
   # By default, `nil` or unspecified values won't appear in the options hash
   # given to the method body.
   #
-  #     irb> ex.run( c: 3 )
+  #     irb> ex.run( nil, a: 2, c: 3 )
   #     c: 3
-  #     => 1
   #
-  # {#define} also lets you decide whether you want to recieve the arguments
+  # Calling the method with extra positional arguments will cause the method to
+  # raise an exception
+  #
+  #     irb> def self.show_error ; yield ; rescue Exception => e ; [ e.class, e.message ] ; end
+  #     irb> show_error { ex.run( 1, 2, 3, 4 ) }
+  #     => [ ArgumentError, "Got 4 arguments, but only know how to handle 3" ]
+  #
+  # {#define} also lets you decide whether the method body receives the arguments
   #
   #   - in a Hash
   #   - as a mix of positional arguments and a trailing hash
@@ -520,8 +521,47 @@ module Flexibility
   # positional arguments.  The final argument to the block is always a hash of
   # options.
   #
+  # For example:
   #
+  # ```ruby
+  # class Example
+  #   include Flexibility
   #
+  #   define( :run,
+  #     a: [],
+  #     b: [],
+  #     c: []
+  #   ) do |a,b,opts|
+  #     puts "a    = #{a.inspect}"
+  #     puts "b    = #{b.inspect}"
+  #     puts "opts = #{opts.inspect}"
+  #     opts.length
+  #   end
+  # end
+  # ```
+  #
+  #     irb> ex.run( 1, 2, 3 )
+  #     a    = 1
+  #     b    = 2
+  #     opts = {:c=>3}
+  #     irb> ex.run( a:1, b:2, c:3, d:4 )
+  #     a    = 1
+  #     b    = 2
+  #     opts = {:c=>3, :d=>4}
+  #
+  # If the method body takes too many arguments (more than the number of
+  # keywords plus one for the options hash), then {#define} will raise an error
+  # instead of creating the method, since it lacks keywords to use to refer to
+  # those extra arguments
+  #
+  #     irb> show_error { Class.new { include Flexibility ; define(:ex) { |a,b,c,opts| } } }
+  #     => [ ArgumentError, "More positional arguments in method body than specified in expected arguments" ]
+  #
+  # Currently, it's also an error to give {#define} a method body that uses a
+  # splat (`*`) to capture a variable number of arguments:
+  #
+  #     irb> show_error { Class.new { include Flexibility ; define(:ex) { |*args,opts| } } }
+  #     => [ NotImplementedError, "Flexibility doesn't support splats in method definitions yet, sorry!" ]
   #
   # @param method_name [ Symbol ]
   #   the name of the method to create
@@ -557,7 +597,7 @@ module Flexibility
   # @see #required
   # @see #validate
   # @see #transform
-  def define method_name, expected, &method_body
+  def define method_name, expected={}, &method_body
     if method_body.arity < 0
       raise(NotImplementedError, "Flexibility doesn't support splats in method definitions yet, sorry!", caller)
     elsif method_body.arity > expected.length + 1
