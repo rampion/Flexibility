@@ -177,205 +177,207 @@ describe Flexibility do
   describe '#define' do
     let (:tag)   { proc { |t| proc { |x| [t, x] } } }
 
-    def options(given, expected)
-      klass.define(:reflect_options, expected) { |opts| opts }
-      instance.reflect_options(*given)
-    end
-
-    it 'applies a hash-of-callbacks to a array-of-values to get a hash-of-results' do
-      expect(options(
-        ["one", "two", "three"], 
-        foo: tag[:first], 
-        bar: tag[:second], 
-        baz: tag[:third]
-      )).to eq( 
-        foo: [:first, "one"],
-        bar: [:second, "two"],
-        baz: [:third, "three"]
-      )
-    end
-    it 'applies the values from a trailing hash in an array-of-values with to their corresponding callbacks' do
-      expect(options(
-        [ "one", { bar: "two", baz: "three" } ], 
-        foo: tag[:first], 
-        bar: tag[:second], 
-        baz: tag[:third]
-      )).to eq( 
-        foo: [:first, "one"],
-        bar: [:second, "two"],
-        baz: [:third, "three"]
-      )
-    end
-    it "applies the callbacks from a hash-of-array-of-callbacks in order to the given value" do
-      expect(options(
-        ["one", "two", "three"], 
-        foo: [ tag[:first1], tag[:first2], tag[:first3] ],
-        bar: [ tag[:second] ],
-        baz: tag[:third]
-      )).to eq( 
-        foo: [:first3, [:first2, [:first1, "one"]]],
-        bar: [:second, "two"],
-        baz: [:third, "three"]
-      )
-    end
-    it "calls the callbacks that don't have a corresponding value" do
-      expect(options(
-        ["one"], 
-        foo: tag[:first], 
-        bar: tag[:second], 
-        baz: tag[:third]
-      )).to eq( 
-        foo: [:first, "one"],
-        bar: [:second, nil],
-        baz: [:third, nil]
-      )
-    end
-    it "calls each proc with its key" do
-      with_key = proc { |v,k| [v,k] }
-      expect(options(
-        ["one", "two", "three"], 
-        foo: with_key, 
-        bar: with_key, 
-        baz: with_key
-      )).to eq( 
-        foo: ["one", :foo],
-        bar: ["two", :bar],
-        baz: ["three", :baz]
-      )
-    end
-    it "calls each proc with the partial results" do
-      ix = 0
-      _ = self
-      callback = proc do |val,_key,partial|
-        case ix += 1
-        when 1
-          _.expect( partial ).to _.eq({})
-          1
-        when 2,3
-          _.expect( partial ).to _.eq(foo: 1)
-          2
-        when 4
-          _.expect( partial ).to _.eq(foo: 1, bar: 2)
-          3
-        end
+    describe 'options handling' do
+      def options(given, expected)
+        klass.define(:reflect_options, expected) { |opts| opts }
+        instance.reflect_options(*given)
       end
 
-      expect(options(
-        ["one", "two", "three"], 
-        foo: callback, 
-        bar: [ callback, callback ],
-        baz: callback
-      )).to eq(
-        foo: 1,
-        bar: 2,
-        baz: 3
-      )
-      expect(ix).to eq(4)
-    end
-    it "calls each proc with the original value" do 
-      ix = 0
-      _ = self
-      callback = proc do |val,_key,_partial,orig|
-        case ix += 1
-        when 1,2
-          _.expect( orig ).to _.eq("one")
-          1
-        when 3,4
-          _.expect( orig ).to _.eq("two")
-          2
-        when 5
-          _.expect( orig ).to _.eq("three")
-          3
-        end
-      end
-
-      expect(options(
-        ["one", "two", "three"], 
-        foo: [ callback, callback ],
-        bar: [ callback, callback ],
-        baz: callback
-      )).to eq(
-        foo: 1,
-        bar: 2,
-        baz: 3
-      )
-
-      expect(ix).to eq(5)
-    end
-    it "raises an error if the array-of-values is longer than the hash-of-callbacks" do
-      expect do
-        options(
-          ["one", "two", "three", "four", "five"], 
+      it 'applies a hash-of-callbacks to a array-of-values to get a hash-of-results' do
+        expect(options(
+          ["one", "two", "three"], 
           foo: tag[:first], 
           bar: tag[:second], 
           baz: tag[:third]
+        )).to eq( 
+          foo: [:first, "one"],
+          bar: [:second, "two"],
+          baz: [:third, "three"]
         )
-      end.to raise_error( ArgumentError )
-    end
-    it "calls each proc with the proper value of self" do
-      ix = 0
-      _ = self
-      callback = proc do |val,_key,_partial,orig|
-        ix += 1
-        _.expect( self ).to _.eq( _.instance )
-        true
       end
-
-      expect(options(
-        ["one", "two", "three"], 
-        foo: [ callback, callback ],
-        bar: [ callback, callback ],
-        baz: callback
-      )).to eq(
-        foo: true,
-        bar: true,
-        baz: true
-      )
-
-      expect(ix).to eq(5)
-    end
-    it "allows you to use unbound methods for the callbacks" do
-      one   = double('one')
-      one_  = double('one_')
-      one__ = double('one__')
-      two   = double('two')
-      two_  = double('two_')
-      
-      _ = self
-      klass.class_eval do
-        define_method(:first)  { |arg| _.expect(arg).to _.be(one)  ; one_ }
-        define_method(:second) { |arg| _.expect(arg).to _.be(one_) ; one__ }
-        define_method(:third)  { |arg| _.expect(arg).to _.be(two)  ; two_ }
+      it 'applies the values from a trailing hash in an array-of-values with to their corresponding callbacks' do
+        expect(options(
+          [ "one", { bar: "two", baz: "three" } ], 
+          foo: tag[:first], 
+          bar: tag[:second], 
+          baz: tag[:third]
+        )).to eq( 
+          foo: [:first, "one"],
+          bar: [:second, "two"],
+          baz: [:third, "three"]
+        )
       end
+      it "applies the callbacks from a hash-of-array-of-callbacks in order to the given value" do
+        expect(options(
+          ["one", "two", "three"], 
+          foo: [ tag[:first1], tag[:first2], tag[:first3] ],
+          bar: [ tag[:second] ],
+          baz: tag[:third]
+        )).to eq( 
+          foo: [:first3, [:first2, [:first1, "one"]]],
+          bar: [:second, "two"],
+          baz: [:third, "three"]
+        )
+      end
+      it "calls the callbacks that don't have a corresponding value" do
+        expect(options(
+          ["one"], 
+          foo: tag[:first], 
+          bar: tag[:second], 
+          baz: tag[:third]
+        )).to eq( 
+          foo: [:first, "one"],
+          bar: [:second, nil],
+          baz: [:third, nil]
+        )
+      end
+      it "calls each proc with its key" do
+        with_key = proc { |v,k| [v,k] }
+        expect(options(
+          ["one", "two", "three"], 
+          foo: with_key, 
+          bar: with_key, 
+          baz: with_key
+        )).to eq( 
+          foo: ["one", :foo],
+          bar: ["two", :bar],
+          baz: ["three", :baz]
+        )
+      end
+      it "calls each proc with the partial results" do
+        ix = 0
+        _ = self
+        callback = proc do |val,_key,partial|
+          case ix += 1
+          when 1
+            _.expect( partial ).to _.eq({})
+            1
+          when 2,3
+            _.expect( partial ).to _.eq(foo: 1)
+            2
+          when 4
+            _.expect( partial ).to _.eq(foo: 1, bar: 2)
+            3
+          end
+        end
 
-      expect(options(
-        [one, two], 
-        foo: [ klass.instance_method(:first), klass.instance_method(:second) ],
-        baz: klass.instance_method(:third)
-      )).to eq(
-        foo: one__,
-        baz: two_
-      )
-    end
-    it "allows you to substitute anything responding to #to_proc for the callbacks" do
-      one   = double('one')
-      one_  = double('one_')
-      one__ = double('one__')
-      two   = double('two')
-      two_  = double('two_')
+        expect(options(
+          ["one", "two", "three"], 
+          foo: callback, 
+          bar: [ callback, callback ],
+          baz: callback
+        )).to eq(
+          foo: 1,
+          bar: 2,
+          baz: 3
+        )
+        expect(ix).to eq(4)
+      end
+      it "calls each proc with the original value" do 
+        ix = 0
+        _ = self
+        callback = proc do |val,_key,_partial,orig|
+          case ix += 1
+          when 1,2
+            _.expect( orig ).to _.eq("one")
+            1
+          when 3,4
+            _.expect( orig ).to _.eq("two")
+            2
+          when 5
+            _.expect( orig ).to _.eq("three")
+            3
+          end
+        end
 
-      expect(one).to receive(:first).and_return(one_)
-      expect(one_).to receive(:second).and_return(one__)
-      expect(two).to receive(:third).and_return(two_)
+        expect(options(
+          ["one", "two", "three"], 
+          foo: [ callback, callback ],
+          bar: [ callback, callback ],
+          baz: callback
+        )).to eq(
+          foo: 1,
+          bar: 2,
+          baz: 3
+        )
 
-      expect(options(
-        [one, two], 
-        foo: [ :first, :second ],
-        baz: :third
-      )).to eq(
-        foo: one__,
-        baz: two_
-      )
+        expect(ix).to eq(5)
+      end
+      it "raises an error if the array-of-values is longer than the hash-of-callbacks" do
+        expect do
+          options(
+            ["one", "two", "three", "four", "five"], 
+            foo: tag[:first], 
+            bar: tag[:second], 
+            baz: tag[:third]
+          )
+        end.to raise_error( ArgumentError )
+      end
+      it "calls each proc with the proper value of self" do
+        ix = 0
+        _ = self
+        callback = proc do |val,_key,_partial,orig|
+          ix += 1
+          _.expect( self ).to _.eq( _.instance )
+          true
+        end
+
+        expect(options(
+          ["one", "two", "three"], 
+          foo: [ callback, callback ],
+          bar: [ callback, callback ],
+          baz: callback
+        )).to eq(
+          foo: true,
+          bar: true,
+          baz: true
+        )
+
+        expect(ix).to eq(5)
+      end
+      it "allows you to use unbound methods for the callbacks" do
+        one   = double('one')
+        one_  = double('one_')
+        one__ = double('one__')
+        two   = double('two')
+        two_  = double('two_')
+        
+        _ = self
+        klass.class_eval do
+          define_method(:first)  { |arg| _.expect(arg).to _.be(one)  ; one_ }
+          define_method(:second) { |arg| _.expect(arg).to _.be(one_) ; one__ }
+          define_method(:third)  { |arg| _.expect(arg).to _.be(two)  ; two_ }
+        end
+
+        expect(options(
+          [one, two], 
+          foo: [ klass.instance_method(:first), klass.instance_method(:second) ],
+          baz: klass.instance_method(:third)
+        )).to eq(
+          foo: one__,
+          baz: two_
+        )
+      end
+      it "allows you to substitute anything responding to #to_proc for the callbacks" do
+        one   = double('one')
+        one_  = double('one_')
+        one__ = double('one__')
+        two   = double('two')
+        two_  = double('two_')
+
+        expect(one).to receive(:first).and_return(one_)
+        expect(one_).to receive(:second).and_return(one__)
+        expect(two).to receive(:third).and_return(two_)
+
+        expect(options(
+          [one, two], 
+          foo: [ :first, :second ],
+          baz: :third
+        )).to eq(
+          foo: one__,
+          baz: two_
+        )
+      end
     end
 
     it "creates a new instance method" do
