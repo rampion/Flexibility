@@ -14,6 +14,12 @@ module Flexibility
   #
   # in a less civilized time, I might have just monkey-patched this as
   # `UnboundMethod::create`
+  #
+  # ----
+  #
+  # @param klass  [Class]  class to associate the method with
+  # @param body   [Proc]   proc to use for the method body
+  # @return [UnboundMethod]
   def self.create_unbound_method(klass, &body)
     name = body.inspect
     klass.class_eval do
@@ -24,7 +30,8 @@ module Flexibility
     end
   end
 
-  # helper to call UnboundMethods with proper number of args
+  # helper to call UnboundMethods with proper number of args,
+  # and avoid `ArgumentError: wrong number of arguments`.
   #
   #     irb> each = Array.instance_method(:each)
   #     irb> each.bind( [ 1, 2, 3] ).call( 4, 5, 6 ) { |x| puts x }
@@ -37,6 +44,15 @@ module Flexibility
   #
   # in a less civilized time, I might have just monkey-patched this as
   # `UnboundMethod#run`
+  #
+  # ----
+  #
+  # @param um       [UnboundMethod(*args,blk) => res]
+  #                           UnboundMethod to run
+  # @param instance [Object]  object to bind `um` to, must be a instance of `um.owner`
+  # @param args     [Array]   arguments to pass to invocation of `um`
+  # @param blk      [Proc]    block to bind to invocation of `um`
+  # @return [res]
   def self.run_unbound_method(um, instance, *args, &blk)
     args = args.take(um.arity) if 0 <= um.arity && um.arity < args.length
     um.bind(instance).call(*args,&blk)
@@ -91,6 +107,8 @@ module Flexibility
   #     getting duration
   #     => { depth: 1, width: 10, height: 10, duration: 12 }
   #
+  # ----
+  #
   # Note that the `yield` keyword inside the block bound to `default` won't be
   # able to access the block bound to the method invocation, as `yield` is
   # lexically scoped (like a local variable).
@@ -112,6 +130,8 @@ module Flexibility
   #     irb> YieldExample.create { :class_creation }.run { :method_invocation }
   #     => { using_yield: :class_creation, using_block: :method_invocation }
   #
+  # ----
+  #
   # @param default_val
   #   if the returned `UnboundMethod` is called with `nil` as its first parameter,
   #   it returns `default_val` (unless {#default} is called with a block)
@@ -131,7 +151,7 @@ module Flexibility
   #   unless called with a block and no args, or called with no block and one arg
   # @return [UnboundMethod(val,key,opts,initial,&blk)]
   # @see #define
-  # @!parse def default(default_val) ; end
+  # @!parse def default(default_val=nil) ; end
   def default(*args,&cb)
     if args.length != (cb ? 0 : 1)
       raise(ArgumentError, "Wrong number of arguments to `default` (expects 0 with a block, or 1 without)", caller)
@@ -192,6 +212,8 @@ module Flexibility
   #
   #     irb> banner.area :width => nil, :height => 5
   #     !> ArgumentError: Required argument :width not given
+  #
+  # ----
   #
   # @return [UnboundMethod(val,key,opts,initial,&blk)]
   #   `UnboundMethod` which returns first parameter given if non-`nil`,
@@ -287,6 +309,8 @@ module Flexibility
   #     irb> silly.check("hey", "hello") { |s| s.length }
   #     => { lo: "hey", hi: "hello" }
   #
+  # ----
+  #
   # Note that the `yield` keyword inside the block bound to {#validate} won't be
   # able to access the block bound to the method invocation, as `yield` is
   # lexically scoped (like a local variable).
@@ -309,6 +333,8 @@ module Flexibility
   #     [:using_yield, :class_creation]
   #     [:using_block, :method_invocation]
   #     => { using_yield: 1, using_block: 2 }
+  #
+  # ----
   #
   # @yield
   #   The block bound to {#validate} receives the following parameters when
@@ -404,6 +430,7 @@ module Flexibility
   #     base value
   #     => { fst: [ 3, 10 ], snd: [ "hi", 10 ] }
   #
+  # ----
   #
   # Note that the `yield` keyword inside the block bound to {#transform} won't be
   # able to access the block bound to the method invocation, as `yield` is
@@ -425,6 +452,8 @@ module Flexibility
   #
   #     irb> YieldExample.create { |val| [:class_creation, val] }.run(1,2) { |val| [ :method_invocation, val] }
   #     => { using_yield: [:class_creation, 1], using_block: [:method_invocation,2] }
+  #
+  # ----
   #
   # @yield
   #   The block bound to {#transform} receives the following parameters when
@@ -501,11 +530,13 @@ module Flexibility
   #     irb> ex.run( nil, a: 2, c: 3 )
   #     c: 3
   #
-  # Calling the method with extra positional arguments will cause the method to
-  # raise an exception
+  # You can use as many keyword arguments as you like, but calling the method
+  # with extra positional arguments will cause the method to raise an exception
   #
   #     irb> ex.run( 1, 2, 3, 4 )
   #     !> ArgumentError: Got 4 arguments, but only know how to handle 3
+  #
+  # ----
   #
   # {#define} also lets you decide whether the method body receives the arguments
   #
@@ -558,6 +589,13 @@ module Flexibility
   #
   #     irb> Class.new { include Flexibility ; define(:ex) { |*args,opts| } }
   #     !> NotImplementedError: Flexibility doesn't support splats in method definitions yet, sorry!
+  #
+  # ----
+  #
+  # {#define} also lets you specify, along with each keyword, a number of
+  # callbacks to be run on 
+  #
+  # ----
   #
   # @param method_name [ Symbol ]
   #   the name of the method to create
@@ -676,6 +714,8 @@ module Flexibility
   #     irb> c.class_eval { include Flexibility }
   #     irb> c.private_methods - before
   #     => [ :default, :required, :validate, :transform, :define ]
+  #
+  # ----
   #
   # @param target [Module] the class or module that included Flexibility
   # @see Module#include
