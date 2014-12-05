@@ -195,6 +195,32 @@ describe Flexibility do
           baz: [:third, "three"]
         )
       end
+      it "doesn't include nil values in the output" do
+        expect(options(
+          [nil, "two", { baz: nil }], 
+          foo: [],
+          bar: proc { nil },
+          baz: [],
+        )).to eq( {} )
+      end
+      it "keeps keywords in the same order as expected" do
+        expect(options(
+          [5, 4, {quux: 0, baz: 1, bar: 2, foo: 3}], 
+          a:[],
+          b:[],
+          foo: [],
+          bar: [],
+          baz: [],
+          quux: [],
+        ).to_a).to eq([
+          [ :a, 5 ],
+          [ :b, 4 ],
+          [ :foo, 3 ],
+          [ :bar, 2 ],
+          [ :baz, 1 ],
+          [ :quux, 0 ]
+        ])
+      end
       it 'applies the values from a trailing hash in an array-of-values with to their corresponding callbacks' do
         expect(options(
           [ "one", { bar: "two", baz: "three" } ], 

@@ -85,7 +85,7 @@ module Flexibility
   #
   #     irb> banner = Banner.new
   #     irb> banner.dimensions
-  #     => { depth: 1, width: 40, height: 40, duration: nil }
+  #     => { depth: 1, width: 40, height: 40 }
   #     irb> banner.dimensions( depth: 2, width: 10, height: 5, duration: 7 )
   #     => { depth: 2, width: 10, height: 5, duration: 7 }
   #     irb> banner.dimensions( width: 10 ) { puts "getting duration" ; 12 }
@@ -449,10 +449,110 @@ module Flexibility
 
   # @!endgroup
 
-  # 
-  # @param method_name [Symbol]
-  # @param expected    [Hash]
-  # @yield 
+  # {#define} lets you define methods that can be called with either
+  #
+  #   - positional arguments
+  #   - keyword arguments
+  #   - a mix of positional and keyword arguments
+  #
+  # It takes a `method_name`, an `Hash` using the argument keywords as keys,
+  # and a block defining the method body.
+  #
+  # For example
+  #
+  # ```ruby
+  # class Example
+  #   include Flexibility
+  #
+  #   define( :run,
+  #     a: [],
+  #     b: [],
+  #     c: []
+  #   ) do |opts|
+  #     opts.each { |k,v| puts "#{k}: #{v.inspect}" }
+  #     opts.length
+  #   end
+  #
+  # end
+  # ```
+  #
+  #     irb> ex = Example.new
+  #     irb> ex.run( 1, 2, 3 )  # all positional arguments
+  #     a: 1
+  #     b: 2
+  #     c: 3
+  #     => 3
+  #     irb> ex.run( c:1, a:2, b:3, d: 0 ) # all keyword arguments
+  #     a: 2
+  #     b: 3
+  #     c: 1
+  #     d: 0
+  #     => 4
+  #     irb> ex.run( 7, 9, d: 18, c:11 ) # mixed keyword and positional arguments
+  #     a: 7
+  #     b: 9
+  #     c: 11
+  #     d: 18
+  #     => 4
+  #
+  # Positional arguments will override keyword arguments if both are given
+  #
+  #     irb> ex.run( 10, 20, 30, a: 1, b: 2, c: 3 )
+  #     a: 10
+  #     b: 20
+  #     c: 30
+  #     => 3
+  #
+  # By default, `nil` or unspecified values won't appear in the options hash
+  # given to the method body.
+  #
+  #     irb> ex.run( c: 3 )
+  #     c: 3
+  #     => 1
+  #
+  # {#define} also lets you decide whether you want to recieve the arguments
+  #
+  #   - in a Hash
+  #   - as a mix of positional arguments and a trailing hash
+  #
+  # It does this by inspecting the arity of the block that defines the method
+  # body. A block that takes `N+1` arguments will be provided with `N`
+  # positional arguments.  The final argument to the block is always a hash of
+  # options.
+  #
+  #
+  #
+  #
+  # @param method_name [ Symbol ]
+  #   the name of the method to create
+  # @param expected    [ { Symbol => [ UnboundMethod(val,key,opts,initial,&blk) ] } ]
+  #   an ordered `Hash` of keywords for each argument, associated with an
+  #   `Array` of `UnboundMethod` callbacks to call on each argument value when
+  #   the defined method is run.
+  #
+  #   In addition to `UnboundMethod`, qnything that responds to `#to_proc` may
+  #   be used for a callback, and a single callback can be used in place of an
+  #   `Array` of one callback.
+  # @yield
+  #   The result of running all the callbacks on each parameter for a given
+  #   call to the defined method.
+  #
+  #   If the block bound to `#define` takes `N+1` parameters, then the first `N`
+  #   will be bound to the values of the first `N` keywords. The last
+  #   parameter given to the block will contain a `Hash` mapping the remaining
+  #   keywords to their values.
+  #
+  # @raise  [ArgumentError]
+  #   If the method body takes `N+1` arguments, but fewer than `N` keywords are
+  #   given in the `expected` parameter, then {#define} does not define the
+  #   method, and instead raises an error.
+  #
+  # @raise  [NotImplementedError]
+  #   If the method body uses a splat (`*`) to capture a variable number of arguments,
+  #   {#define} raises an error, as `Flexibility` has not determined how best to
+  #   handle that case yet. Sorry. Bother the developer if you want that
+  #   changed.
+  #
   # @see #default
   # @see #required
   # @see #validate
@@ -505,15 +605,22 @@ module Flexibility
         raise(ArgumentError, "Got #{given.length} arguments, but only know how to handle #{expected_ums.length}", caller)
       end
 
-      opts = trailing_opts.dup
+      opts = {}
       expected_ums.each.with_index do |(key, ums), i|
         # check positional argument for value first, then default to trailing options
         initial = i < given.length ? given[i] : trailing_opts[key]
 
         # run every callback, threading the results through each
-        opts[key] = ums.inject(initial) do |val, um|
+        final = ums.inject(initial) do |val, um|
           Flexibility::run_unbound_method(um, self, val, key, opts, initial, &blk)
         end
+
+        opts[key] = final unless final.nil?
+      end
+
+      # copy remaining options
+      (trailing_opts.keys - expected_ums.keys).each do |key|
+        opts[key] = trailing_opts[key]
       end
 
       Flexibility::run_unbound_method(
