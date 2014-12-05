@@ -388,24 +388,25 @@ module Flexibility
   # earlier parameters, and the bound block with {#transform}...
   #
   # ```ruby
-  # class Brawl
+  # class Silly
   #   include Flexibility
   #
   #   def initialize base
   #     @base = base
   #   end
   #
-  #   define( :foo,
-  #     sven:  transform { |x,&blk|   [x, blk[@base] ]      },
-  #     polo:  transform { |x,_,opts| [x, opts[:sven].last] }
+  #   define( :tag_with_base,
+  #     fst:  transform { |x,&blk|   [x, blk[@base] ]      },
+  #     snd:  transform { |x,_,opts| [x, opts[:fst].last] }
   #   ) { |opts| opts }
   # end
   # ```
   #
-  #     irb> brawl = Brawl.new( "i'm the map" )
-  #     irb> brawl.foo( sven: 3, polo: "hi" ) { |msg| puts msg ; msg.length }
-  #     i'm the map
-  #     => { sven: [ 3, 11 ], polo: [ "hi", 11 ] }
+  #     irb> silly = Silly.new( "base value" )
+  #     irb> silly.tag_with_base( fst: 3, snd: "hi" ) { |msg| puts msg ; msg.length }
+  #     base value
+  #     => { fst: [ 3, 10 ], snd: [ "hi", 10 ] }
+  #     
   #
   # Note that the `yield` keyword inside the block bound to {#transform} won't be
   # able to access the block bound to the method invocation, as `yield` is
