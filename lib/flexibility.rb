@@ -12,6 +12,8 @@ module Flexibility
   #     irb> Flexibility.run_unbound_method(inject_r, %w{ a b c }, "x") { |l,r| "(#{l}#{r})" }
   #     => "(((xc)b)a)"
   #
+  # in a less civilized time, I might have just monkey-patched this as
+  # `UnboundMethod::create`
   def self.create_unbound_method(klass, &body)
     name = body.inspect
     klass.class_eval do
@@ -34,6 +36,8 @@ module Flexibility
   #     3
   #     => [1,2,3]
   #
+  # in a less civilized time, I might have just monkey-patched this as
+  # `UnboundMethod#run`
   def self.run_unbound_method(um, instance, *args, &blk)
     args = args.take(um.arity) if 0 <= um.arity && um.arity < args.length
     um.bind(instance).call(*args,&blk)
