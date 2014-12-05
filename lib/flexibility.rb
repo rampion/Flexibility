@@ -6,22 +6,19 @@ module Flexibility
   # helper for creating UnboundMethods
   #
   #     irb> inject = Array.instance_method(:inject)
-  #     irb> Flexibility::RUN_UNBOUND_METHOD.(inject, %w{ a b c }, "x") { |l,r| "(#{l}#{r})" }
+  #     irb> Flexibility.run_unbound_method(inject, %w{ a b c }, "x") { |l,r| "(#{l}#{r})" }
   #     => "(((xa)b)c)"
-  #     irb> inject_r = Flexibility::DEF_UNBOUND_METHOD.( Array ) { |*args,&blk| reverse.inject(*args, &blk) }
-  #     irb> Flexibility::RUN_UNBOUND_METHOD.(inject_r, %w{ a b c }, "x") { |l,r| "(#{l}#{r})" }
+  #     irb> inject_r = Flexibility.create_unbound_method( Array ) { |*args,&blk| reverse.inject(*args, &blk) }
+  #     irb> Flexibility.run_unbound_method(inject_r, %w{ a b c }, "x") { |l,r| "(#{l}#{r})" }
   #     => "(((xc)b)a)"
   #
-  DEF_UNBOUND_METHOD = begin
-    count = 0
-    lambda do |klass, &body|
-      klass.class_eval do
-        name = "#unbound_method_#{count += 1}"
-        define_method(name, &body)
-        um = instance_method(name)
-        remove_method(name)
-        um
-      end
+  def self.create_unbound_method(klass, &body)
+    name = body.inspect
+    klass.class_eval do
+      define_method(name, &body)
+      um = instance_method(name)
+      remove_method(name)
+      um
     end
   end
 
@@ -31,13 +28,13 @@ module Flexibility
   #     irb> each = Array.instance_method(:each)
   #     irb> show_error { each.bind( [ 1, 2, 3] ).call( 4, 5, 6 ) { |x| puts x } }
   #     => [ ArgumentError, "wrong number of arguments (3 for 0)" ]
-  #     irb> show_error { Flexibility::RUN_UNBOUND_METHOD.(each, [ 1, 2, 3], 4, 5, 6 ) { |x| puts x } }
+  #     irb> show_error { Flexibility.run_unbound_method(each, [ 1, 2, 3], 4, 5, 6 ) { |x| puts x } }
   #     1
   #     2
   #     3
   #     => [1,2,3]
   #
-  RUN_UNBOUND_METHOD = lambda do |um, instance, *args, &blk|
+  def self.run_unbound_method(um, instance, *args, &blk)
     args = args.take(um.arity) if 0 <= um.arity && um.arity < args.length
     um.bind(instance).call(*args,&blk)
   end
@@ -127,22 +124,23 @@ module Flexibility
   #   otherwise yields to block bound to `#default` or returns parameter given
   #   to `#default`
   # @see #define
+  # @!parse def default(value) ; end
   def default(*args,&cb)
     if args.length != (cb ? 0 : 1)
       raise(ArgumentError, "Wrong number of arguments to `default` (expects 0 with a block, or 1 without)", caller)
     elsif cb
-      um = DEF_UNBOUND_METHOD[self, &cb]
-      DEF_UNBOUND_METHOD.(self) do |*args, &blk| 
+      um = Flexibility::create_unbound_method(self, &cb)
+      Flexibility::create_unbound_method(self) do |*args, &blk| 
         val = args.shift
         unless val.nil? 
           val
         else
-          RUN_UNBOUND_METHOD[um,self,*args,&blk]
+          Flexibility::run_unbound_method(um,self,*args,&blk)
         end
       end
     else
       default = args.first
-      DEF_UNBOUND_METHOD.(self) { |*args| val = args.shift; val.nil? ? default : val }
+      Flexibility::create_unbound_method(self) { |*args| val = args.shift; val.nil? ? default : val }
     end
   end
 
@@ -194,7 +192,7 @@ module Flexibility
   #   otherwise raises `ArgumentError`
   # @see #define
   def required
-    DEF_UNBOUND_METHOD.(self) do |*args|
+    Flexibility::create_unbound_method(self) do |*args|
       val, key = *args
       if val.nil?
         raise(ArgumentError, "Required argument #{key.inspect} not given", caller)
@@ -319,10 +317,10 @@ module Flexibility
   #   raises `ArgumentError` otherwise.
   # @see #define
   def validate(&cb)
-    um = DEF_UNBOUND_METHOD[self, &cb]
-    DEF_UNBOUND_METHOD.(self) do |*args,&blk|
+    um = Flexibility::create_unbound_method(self, &cb)
+    Flexibility::create_unbound_method(self) do |*args,&blk|
       val, key, _opts, orig = *args
-      unless RUN_UNBOUND_METHOD[um,self,*args,&blk]
+      unless Flexibility::run_unbound_method(um,self,*args,&blk)
         raise(ArgumentError, "Invalid value #{orig.inspect} given for argument #{key.inspect}", caller)
       end
       val
@@ -425,7 +423,7 @@ module Flexibility
   #   `UnboundMethod` created from block bound to `#transform`
   # @see #define
   def transform(&blk)
-    DEF_UNBOUND_METHOD.(self, &blk)
+    Flexibility::create_unbound_method(self, &blk)
   end
 
   # @!endgroup
@@ -445,7 +443,7 @@ module Flexibility
     #
     # `instance_eval` only allows us to do (1), whereas `instance_exec` only
     # allows (1) and (2), and `call` only allows (2) and (3).
-    method_um = DEF_UNBOUND_METHOD[self, &method_body]
+    method_um = Flexibility::create_unbound_method(self, &method_body)
 
     # similarly, create UnboundMethods from the callbacks
     expected_ums = {}
@@ -458,7 +456,7 @@ module Flexibility
         if UnboundMethod === cb
           cb
         elsif cb.respond_to? :to_proc
-          DEF_UNBOUND_METHOD[self, &cb]
+          Flexibility::create_unbound_method(self, &cb)
         else
           raise(ArgumentError, "Unrecognized expectation #{cb.inspect} for #{key.inspect}, expecting an UnboundMethod or something that responds to #to_proc", caller)
         end
@@ -486,16 +484,16 @@ module Flexibility
 
         # run every callback, threading the results through each
         opts[key] = ums.inject(found) do |val, um|
-          RUN_UNBOUND_METHOD[um, self, val, key, opts, found, &blk]
+          Flexibility::run_unbound_method(um, self, val, key, opts, found, &blk)
         end
       end
 
-      RUN_UNBOUND_METHOD[ 
+      Flexibility::run_unbound_method(
         method_um, 
         self, 
         *keys.map { |key| opts.delete key }.push( opts ).take( method_um.arity ), 
         &blk 
-      ]
+      )
     end
   end
 
