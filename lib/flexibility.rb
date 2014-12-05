@@ -26,11 +26,10 @@ module Flexibility
 
   # helper to call UnboundMethods with proper number of args
   #
-  #     irb> def self.show_error ; yield ; rescue => e ; [ e.class, e.message ] ; end
   #     irb> each = Array.instance_method(:each)
-  #     irb> show_error { each.bind( [ 1, 2, 3] ).call( 4, 5, 6 ) { |x| puts x } }
-  #     => [ ArgumentError, "wrong number of arguments (3 for 0)" ]
-  #     irb> show_error { Flexibility.run_unbound_method(each, [ 1, 2, 3], 4, 5, 6 ) { |x| puts x } }
+  #     irb> each.bind( [ 1, 2, 3] ).call( 4, 5, 6 ) { |x| puts x }
+  #     !> ArgumentError: wrong number of arguments (3 for 0)
+  #     irb> Flexibility.run_unbound_method(each, [ 1, 2, 3], 4, 5, 6 ) { |x| puts x }
   #     1
   #     2
   #     3
@@ -177,23 +176,22 @@ module Flexibility
   #
   # We can specify (or not) any of the arguments to see the checking in action
   #
-  #     irb> def self.show_error ; yield ; rescue => e ; [ e.class, e.message ] ; end
   #     irb> banner = Banner.new
-  #     irb> show_error { banner.area }
-  #     => [ ArgumentError, "Required argument :width not given" ]
-  #     irb> show_error { banner.area :width => 5 }
-  #     => [ ArgumentError, "Required argument :height not given" ]
-  #     irb> show_error { banner.area :height => 5 }
-  #     => [ ArgumentError, "Required argument :width not given" ]
-  #     irb> show_error { banner.area :width => 6, :height => 5 }
+  #     irb> banner.area
+  #     !> ArgumentError: Required argument :width not given
+  #     irb> banner.area :width => 5
+  #     !> ArgumentError: Required argument :height not given
+  #     irb> banner.area :height => 5
+  #     !> ArgumentError: Required argument :width not given
+  #     irb> banner.area :width => 6, :height => 5
   #     => 30
   #
   # Note that {#required} specifically checks that the argument is non-nil, not
   # *unspecified*, so explicitly given `nil` arguments will still raise an
   # error:
   #
-  #     irb> show_error { banner.area :width => nil, :height => 5 }
-  #     => [ ArgumentError, "Required argument :width not given" ]
+  #     irb> banner.area :width => nil, :height => 5
+  #     !> ArgumentError: Required argument :width not given
   #
   # @return [UnboundMethod(val,key,opts,initial,&blk)]
   #   `UnboundMethod` which returns first parameter given if non-`nil`,
@@ -245,15 +243,14 @@ module Flexibility
   # end
   # ```
   #
-  #     irb> def self.show_error ; yield ; rescue => e ; [ e.class, e.message ] ; end
   #     irb> conv = Converter.new
-  #     irb> show_error { conv.polar_to_cartesian -1, 0, 0 }
-  #     => [ ArgumentError, "Invalid value -1 given for argument :radius" ]
-  #     irb> show_error { conv.polar_to_cartesian 0, -1, 0 }
-  #     => [ ArgumentError, "Invalid value -1 given for argument :theta" ]
-  #     irb> show_error { conv.polar_to_cartesian 0, 0, -1 }
-  #     => [ ArgumentError, "Invalid value -1 given for argument :phi" ]
-  #     irb> show_error { conv.polar_to_cartesian 0, 0, 0 }
+  #     irb> conv.polar_to_cartesian -1, 0, 0
+  #     !> ArgumentError: Invalid value -1 given for argument :radius
+  #     irb> conv.polar_to_cartesian 0, -1, 0
+  #     !> ArgumentError: Invalid value -1 given for argument :theta
+  #     irb> conv.polar_to_cartesian 0, 0, -1
+  #     !> ArgumentError: Invalid value -1 given for argument :phi
+  #     irb> conv.polar_to_cartesian 0, 0, 0
   #     => { x: 0, y: 0, z: 0 }
   #
   #
@@ -281,13 +278,13 @@ module Flexibility
   # ```
   #
   #     irb> silly = Silly.new(3,5)
-  #     irb> show_error { silly.check("hi", "salutations") { |s| s.length } }
-  #     => [ ArgumentError, 'Invalid value "hi" given for argument :lo' ]
-  #     irb> show_error { silly.check("hey", "salutations") { |s| s.length } }
-  #     => [ ArgumentError, 'Invalid value "salutations" given for argument :hi' ]
-  #     irb> show_error { silly.check("hello", "hey") { |s| s.length } }
-  #     => [ ArgumentError, 'Invalid value "hey" given for argument :hi' ]
-  #     irb> show_error { silly.check("hey", "hello") { |s| s.length } }
+  #     irb> silly.check("hi", "salutations") { |s| s.length }
+  #     !> ArgumentError: Invalid value "hi" given for argument :lo
+  #     irb> silly.check("hey", "salutations") { |s| s.length }
+  #     !> ArgumentError: Invalid value "salutations" given for argument :hi
+  #     irb> silly.check("hello", "hey") { |s| s.length }
+  #     !> ArgumentError: Invalid value "hey" given for argument :hi
+  #     irb> silly.check("hey", "hello") { |s| s.length }
   #     => { lo: "hey", hi: "hello" }
   #
   # Note that the `yield` keyword inside the block bound to {#validate} won't be
@@ -507,9 +504,8 @@ module Flexibility
   # Calling the method with extra positional arguments will cause the method to
   # raise an exception
   #
-  #     irb> def self.show_error ; yield ; rescue Exception => e ; [ e.class, e.message ] ; end
-  #     irb> show_error { ex.run( 1, 2, 3, 4 ) }
-  #     => [ ArgumentError, "Got 4 arguments, but only know how to handle 3" ]
+  #     irb> ex.run( 1, 2, 3, 4 )
+  #     !> ArgumentError: Got 4 arguments, but only know how to handle 3
   #
   # {#define} also lets you decide whether the method body receives the arguments
   #
@@ -554,14 +550,14 @@ module Flexibility
   # instead of creating the method, since it lacks keywords to use to refer to
   # those extra arguments
   #
-  #     irb> show_error { Class.new { include Flexibility ; define(:ex) { |a,b,c,opts| } } }
-  #     => [ ArgumentError, "More positional arguments in method body than specified in expected arguments" ]
+  #     irb> Class.new { include Flexibility ; define(:ex) { |a,b,c,opts| } }
+  #     !> ArgumentError: More positional arguments in method body than specified in expected arguments
   #
   # Currently, it's also an error to give {#define} a method body that uses a
   # splat (`*`) to capture a variable number of arguments:
   #
-  #     irb> show_error { Class.new { include Flexibility ; define(:ex) { |*args,opts| } } }
-  #     => [ NotImplementedError, "Flexibility doesn't support splats in method definitions yet, sorry!" ]
+  #     irb> Class.new { include Flexibility ; define(:ex) { |*args,opts| } }
+  #     !> NotImplementedError: Flexibility doesn't support splats in method definitions yet, sorry!
   #
   # @param method_name [ Symbol ]
   #   the name of the method to create

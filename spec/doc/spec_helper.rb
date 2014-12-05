@@ -49,12 +49,14 @@ def extract_examples path
 
       mode = if comment =~ /^irb> /
                :test
-             elsif not [ :output, :test ].include? last_mode
-               :eval
              elsif comment =~ /^=> /
                :result
-             else
+             elsif comment =~ /^!> \w+: /
+               :error
+             elsif [ :output, :test ].include? last_mode
                :output
+             else
+               :eval
              end
 
       case mode
@@ -69,6 +71,9 @@ def extract_examples path
         code_blocks.last[:output] << comment + "\n"
       when :result
         code_blocks.last.merge!( result_lineno: index+1, result: line.sub('=>', '  ') )
+      when :error
+        comment =~ /^!> (\w+): (.*)/
+        code_blocks.last.merge!( error_class: $1, error_message: $2.strip )
       end
       last_mode = mode
     end
@@ -80,43 +85,46 @@ def extract_examples path
 
       describe block[:description] do
 
-        before = []
         block[:code_blocks].each_with_index do |code, i|
-          if code[:result]
-            it "result of `#{code[:lines].first.strip}...`" do
-              b = eval(<<-EVAL)
-                module #{block[:description].gsub(/^\W+|\W+$/,'').gsub(/\W+/,'_').upcase!}_RESULT_#{i}
-                  binding
-                end
-              EVAL
-              block[:code_blocks][0 ... i].each { |x| eval( x[:lines].join, b, path, x[:lineno] ) }
 
-              actual_result = eval( code[:lines].join, b, path, code[:lineno] )
+          next unless code[:result] or code[:output] or code[:error_class]
+
+          desc = "`#{code[:lines].first.strip}`"
+          desc.sub!(/`$/, '...`') if code[:lines].length > 1
+
+          it desc do
+            b = eval(<<-EVAL)
+              module #{block[:description].gsub(/^\W+|\W+$/,'').gsub(/\W+/,'_').upcase!}_RESULT_#{i}
+                binding
+              end
+            EVAL
+
+            actual_result = block[:code_blocks][0 .. i].inject(nil) do |_,x| 
+              STROUT.rewind
+              STROUT.truncate 0
+              begin
+                eval( x[:lines].join, b, path, x[:lineno] ) 
+              rescue Exception => e
+                raise unless x[:error_class]
+                eval(<<-CHECK, binding, path, x[:lineno] )
+                  expect( e.class.to_s ).to eq(x[:error_class])
+                  expect( e.message ).to eq(x[:error_message])
+                CHECK
+              end
+            end
+
+            if code[:result]
               expected_result = eval( code[:result], b, path, code[:result_lineno] )
               eval(%!expect( actual_result ).to eq( expected_result )!, binding, path, code[:lineno] )
             end
-          end
 
-          if code[:output]
-            it "output of `#{code[:lines].first.strip}...`" do
-              b = eval(<<-EVAL)
-                module #{block[:description].gsub(/^\W+|\W+$/,'').gsub(/\W+/,'_').upcase!}_OUTPUT_#{i}
-                  binding
-                end
-              EVAL
-              block[:code_blocks][0 ... i].each { |x| eval( x[:lines].join, b, path, x[:lineno] ) }
+            if code[:output]
               STROUT.rewind
-              STROUT.truncate 0
-              eval( code[:lines].join, b, path, code[:lineno] )
-              STROUT.rewind
-
               actual_output = STROUT.read
               expected_output = code[:output].join
               eval( %!expect( actual_output ).to eq( expected_output )!, binding, path, code[:lineno] )
             end
           end
-
-          before << code
         end
       end
     end

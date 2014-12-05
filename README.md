@@ -77,13 +77,12 @@ argument, which it automatically upper-cases:
 And it will raise an error if the `message` is missing or not a String, or if
 the `width` argument is negative:
 
-    irb> show_error = lambda { |&blk| begin ; blk[] ; rescue => e ; [ e.class, e.message ] ; end }
-    irb> show_error.() { banner.show }
-    => [ ArgumentError, "Required argument :message not given" ]
-    irb> show_error.() { banner.show 8675309 }
-    => [ ArgumentError, "Invalid value 8675309 given for argument :message" ]
-    irb> show_error.() { banner.show "hello", -9 }
-    => [ ArgumentError, "Invalid value -9 given for argument :width" ]
+    irb> banner.show
+    !> ArgumentError: Required argument :message not given
+    irb> banner.show 8675309
+    !> ArgumentError: Invalid value 8675309 given for argument :message
+    irb> banner.show "hello", -9
+    !> ArgumentError: Invalid value -9 given for argument :width
 
 Just as `Flexibility#define` allows the method caller to determine whether to
 pass the method arguments positionally, with keywords, or in a mixture of the
