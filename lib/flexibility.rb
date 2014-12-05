@@ -62,12 +62,12 @@ module Flexibility
   # class Banner
   #   include Flexibility
   #
-  #   define :dimensions, {
+  #   define( :dimensions,
   #     depth:    default( 1 ),
   #     width:    default { @width },
   #     height:   default { |_key,opts| opts[:width] } ,
   #     duration: default { |&blk| blk[] if blk }
-  #   } do |opts|
+  #   ) do |opts|
   #     opts
   #   end
   #
@@ -97,10 +97,10 @@ module Flexibility
   #   def self.create
   #     Class.new do
   #       include Flexibility
-  #       define :run, {
+  #       define( :run,
   #         using_yield:  default { yield },
   #         using_block:  default { |&blk| blk[] }
-  #       } { |opts| opts }
+  #       ) { |opts| opts }
   #     end.new
   #   end
   # end
@@ -162,10 +162,10 @@ module Flexibility
   # class Banner
   #   include Flexibility
   #
-  #   define :area, {
+  #   define( :area,
   #     width: required,
   #     height: required
-  #   } do |width,height,_| 
+  #   ) do |width,height,_| 
   #     width * height
   #   end
   # end
@@ -228,11 +228,11 @@ module Flexibility
   # class Converter
   #   include Flexibility
   #
-  #   define :polar_to_cartesian, {
+  #   define( :polar_to_cartesian,
   #     radius: validate { |r| 0 <= r },
   #     theta:  validate { |t| 0 <= t && t < Math::PI },
   #     phi:    validate { |p| 0 <= p && p < 2*Math::PI }
-  #   } do |r,t,p,_|
+  #   ) do |r,t,p,_|
   #     { x: r * Math.sin(t) * Math.cos(p), 
   #       y: r * Math.sin(t) * Math.sin(p),
   #       z: r * Math.cos(t)
@@ -266,13 +266,13 @@ module Flexibility
   #
   #   in_range = validate { |x,&blk| @min <= blk[x] && blk[x] <= @max }
   #
-  #   define :check, {
+  #   define( :check,
   #     lo:     in_range,
   #     hi:     [ 
   #       in_range, 
   #       validate { |x,key,opts,&blk| blk[opts[:lo]] <= blk[x] } 
   #     ],
-  #   } { |opts| opts }
+  #   ) { |opts| opts }
   # end
   # ```
   #
@@ -295,10 +295,10 @@ module Flexibility
   #   def self.create
   #     Class.new do
   #       include Flexibility
-  #       define :run, {
+  #       define( :run,
   #         using_yield:  validate { |val,key|      puts [key, yield].inspect ; true },
   #         using_block:  validate { |val,key,&blk| puts [key, blk[]].inspect ; true }
-  #       } { |opts| opts }
+  #       ) { |opts| opts }
   #     end.new
   #   end
   # end
@@ -365,10 +365,10 @@ module Flexibility
   #     end
   #   end
   #
-  #   define :elapsed, { 
+  #   define( :elapsed,
   #     start: to_epoch,
   #     stop:  to_epoch
-  #   } do |start, stop, _|
+  #   ) do |start, stop, _|
   #     stop - start
   #   end
   # end
@@ -391,10 +391,10 @@ module Flexibility
   #     @base = base
   #   end
   #
-  #   define :foo, {
+  #   define( :foo,
   #     sven:  transform { |x,&blk|   [x, blk[@base] ]      },
   #     polo:  transform { |x,_,opts| [x, opts[:sven].last] }
-  #   } { |opts| opts }
+  #   ) { |opts| opts }
   # end
   # ```
   #
@@ -412,10 +412,10 @@ module Flexibility
   #   def self.create
   #     Class.new do
   #       include Flexibility
-  #       define :run, {
+  #       define( :run,
   #         using_yield:  transform { |val|      yield(val) },
   #         using_block:  transform { |val,&blk| blk[val] }
-  #       } { |opts| opts }
+  #       ) { |opts| opts }
   #     end.new
   #   end
   # end

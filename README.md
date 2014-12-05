@@ -8,7 +8,7 @@ For example, suppose we define
 class Banner
   include Flexibility
 
-  define :show, {
+  define( :show,
     message: [
       required,
       validate { |s| String === s },
@@ -19,7 +19,7 @@ class Banner
       validate { |n| 0 <= n }
     ],
     symbol:  default('*')
-  } do |message,width,symbol,unused_opts|
+  ) do |message,width,symbol,unused_opts|
     width = [ width, message.length + 4 ].max
     puts "#{symbol * width}"
     puts "#{symbol} #{message.ljust(width - 4)} #{symbol}"
