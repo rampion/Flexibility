@@ -123,14 +123,14 @@ module Flexibility
   #
   #   The block bound to {#default} receives the following parameters when called
   #   by a method created with {#define}:
-  # @yieldparam key   [Symbol]  the key of the option currently being processed
-  # @yieldparam opts  [Hash]    the options hash thus far
-  # @yieldparam found [Object]  the original value passed to the method for this option
-  # @yieldparam &blk  [Proc]    the block passed to the method
-  # @yieldparam self  [keyword]  bound to the same instance that the method is invoked on
+  # @yieldparam key     [Symbol]  the key of the option currently being processed
+  # @yieldparam opts    [Hash]    the options hash thus far
+  # @yieldparam initial [Object]  the original value passed to the method for this option
+  # @yieldparam &blk    [Proc]    the block passed to the method
+  # @yieldparam self    [keyword] bound to the same instance that the method is invoked on
   # @raise  [ArgumentError]
   #   unless called with a block and no args, or called with no block and one arg
-  # @return [UnboundMethod(val,key,opts,found,&blk)]
+  # @return [UnboundMethod(val,key,opts,initial,&blk)]
   # @see #define
   # @!parse def default(default_val) ; end
   def default(*args,&cb)
@@ -195,7 +195,7 @@ module Flexibility
   #     irb> show_error { banner.area :width => nil, :height => 5 }
   #     => [ ArgumentError, "Required argument :width not given" ]
   #
-  # @return [UnboundMethod(val,key,opts,found,&blk)]
+  # @return [UnboundMethod(val,key,opts,initial,&blk)]
   #   `UnboundMethod` which returns first parameter given if non-`nil`,
   #   otherwise raises `ArgumentError`
   # @see #define
@@ -316,16 +316,16 @@ module Flexibility
   # @yield
   #   The block bound to {#validate} receives the following parameters when
   #   called by a method created with {#define}:
-  # @yieldparam val   [Object]  the value of the option currently being processed
-  # @yieldparam key   [Symbol]  the key for the option currently being processed
-  # @yieldparam opts  [Hash]    the options hash thus far
-  # @yieldparam found [Object]  the original value passed to the method for this option
-  # @yieldparam &blk  [Proc]    the block passed to the method
-  # @yieldparam self  [keyword]  bound to the same instance that the method is invoked on
+  # @yieldparam val     [Object]  the value of the option currently being processed
+  # @yieldparam key     [Symbol]  the key for the option currently being processed
+  # @yieldparam opts    [Hash]    the options hash thus far
+  # @yieldparam initial [Object]  the original value passed to the method for this option
+  # @yieldparam &blk    [Proc]    the block passed to the method
+  # @yieldparam self    [keyword] bound to the same instance that the method is invoked on
   # @yieldreturn [Boolean]
   #   indicates whether the returned `UnboundMethod` should
   #   return the first parameter or raise an `ArgumentError`.
-  # @return [UnboundMethod(val,key,opts,found,&blk)]
+  # @return [UnboundMethod(val,key,opts,initial,&blk)]
   #   `UnboundMethod` which returns first parameter given if block
   #   bound to {#validate} returns truthy on arguments/block given ,
   #   raises `ArgumentError` otherwise.
@@ -432,15 +432,15 @@ module Flexibility
   # @yield
   #   The block bound to {#transform} receives the following parameters when
   #   called by a method created with {#define}:
-  # @yieldparam val   [Object]  the value of the option currently being processed
-  # @yieldparam key   [Symbol]  the key for the option currently being processed
-  # @yieldparam opts  [Hash]    the options hash thus far
-  # @yieldparam found [Object]  the original value passed to the method for this option
-  # @yieldparam &blk  [Proc]    the block passed to the method
-  # @yieldparam self  [keyword]  bound to the same instance that the method is invoked on
+  # @yieldparam val     [Object]  the value of the option currently being processed
+  # @yieldparam key     [Symbol]  the key for the option currently being processed
+  # @yieldparam opts    [Hash]    the options hash thus far
+  # @yieldparam initial [Object]  the original value passed to the method for this option
+  # @yieldparam &blk    [Proc]    the block passed to the method
+  # @yieldparam self    [keyword] bound to the same instance that the method is invoked on
   # @yieldreturn
   #   value for returned `UnboundMethod` to return
-  # @return [UnboundMethod(val,key,opts,found,&blk)]
+  # @return [UnboundMethod(val,key,opts,initial,&blk)]
   #   `UnboundMethod` created from block bound to {#transform}
   # @see #define
   def transform(&blk)
@@ -508,11 +508,11 @@ module Flexibility
       opts = trailing_opts.dup
       expected_ums.each.with_index do |(key, ums), i|
         # check positional argument for value first, then default to trailing options
-        found = i < given.length ? given[i] : trailing_opts[key]
+        initial = i < given.length ? given[i] : trailing_opts[key]
 
         # run every callback, threading the results through each
-        opts[key] = ums.inject(found) do |val, um|
-          Flexibility::run_unbound_method(um, self, val, key, opts, found, &blk)
+        opts[key] = ums.inject(initial) do |val, um|
+          Flexibility::run_unbound_method(um, self, val, key, opts, initial, &blk)
         end
       end
 
