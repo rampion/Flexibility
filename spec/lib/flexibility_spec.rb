@@ -441,6 +441,16 @@ describe Flexibility do
       end
       instance.foo(1,2,3,4)
     end
+    it "raises an error if too many positional arguments are given" do
+      _ = self
+      run = false
+      klass.define(:foo, { a: [], b: [], c: [], d: []  }) { |opts| run = true }
+      expect { instance.foo(1,2,3,4,5) }.to raise_error(ArgumentError)
+      expect { instance.foo(1,2,3,4,5,{}) }.to raise_error(ArgumentError)
+      expect( run ).to eq( false )
+      expect { instance.foo(1,2,3,4,{}) }.to_not raise_error
+      expect( run ).to eq( true )
+    end
     it "raises an error if the method body uses a splat" do
       expect { klass.define(:foo, {}) { |*as| } }.to raise_error(NotImplementedError)
     end
