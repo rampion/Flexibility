@@ -592,8 +592,246 @@ module Flexibility
   #
   # ----
   #
-  # {#define} also lets you specify, along with each keyword, a number of
-  # callbacks to be run on 
+  # {#define} also lets you specify, along with each keyword, a sequence of
+  # UnboundMethod callbacks to be run on the argument given for that keyword on
+  # each run of the generated method.
+  #
+  # When run, these callbacks will be passed:
+  #
+  #   - the current value of the given argument
+  #   - the keyword associated with the given argument
+  #   - the hash of options generated thus far
+  #   - the original value of the given argument
+  #   - any block passed to this invocation of the generated method
+  #
+  # The callback will also have its value of `self` bound to the same instance
+  # running the generated method.
+  #
+  # ```ruby
+  # class IntParser
+  #   include Flexibility
+  #
+  #   def initialize base
+  #     @base = base
+  #   end
+  #
+  #   def parse arg
+  #     arg.to_i(@base)
+  #   end
+  #
+  #   define(:parse_both,
+  #     a: [ instance_method(:parse) ],
+  #     b: [ instance_method(:parse) ]
+  #   ) do |opts|
+  #     opts
+  #   end
+  # end
+  # ```
+  #
+  #     irb> p16 = IntParser.new(16)
+  #     irb> p32 = IntParser.new(32)
+  #     irb> p16.parse_both *%w{ ff 11 }
+  #     => { a: 255, b: 17 }
+  #     irb> p32.parse_both *%w{ ff 11 }
+  #     => { a: 495, b: 33 }
+  #
+  # If you pass multiple callbacks, they are executed in sequence, with the
+  # result of one callback being fed to the next:
+  #
+  # ```ruby
+  # class IntParser
+  #   #...
+  #   def increment num
+  #     num + 1
+  #   end
+  #
+  #   def decrement num
+  #     num - 1
+  #   end
+  #
+  #   def format arg
+  #     arg.to_s(@base)
+  #   end
+  #
+  #   define(:parse_change_and_format_both,
+  #     a: [ instance_method(:parse), instance_method(:increment), instance_method(:format) ],
+  #     b: [ instance_method(:parse), instance_method(:decrement), instance_method(:format) ],
+  #   ) do |opts|
+  #     opts
+  #   end
+  # end
+  # ```
+  #
+  #     irb> p16.parse_change_and_format_both *%w{ ff 11 }
+  #     => { a: "100", b: "10" }
+  #     irb> p32.parse_change_and_format_both *%w{ ff 11 }
+  #     => { a: "fg", b: "10" }
+  #
+  # Rather than defining one-off instance methods like `IntParser#increment` and
+  # `IntParser#decrement`, you can use the {#default}, {#required},
+  # {#transform}, and {#validate} methods provided by `Flexibility` to construct
+  # `UnboundMethod` callbacks:
+  #
+  # ```ruby
+  # class IntParser
+  #   #...
+  #   parse = instance_method(:parse)
+  #   format = instance_method(:format)
+  #
+  #   parsable = validate do |s|
+  #     _0 = '0'.ord
+  #     _9 = _0 + [@base, 10].min - 1
+  #     _a = 'a'.ord
+  #     _z = _a + [@base - 10, 26].min - 1
+  #     _A = 'A'.ord
+  #     _Z = _A + [@base - 10, 26].min - 1
+  #     s.chars.all? do |c|
+  #       n = c.ord
+  #       [ _0 <= n && n <= _9,
+  #         _a <= n && n <= _z,
+  #         _A <= n && n <= _Z,
+  #       ].any?
+  #     end
+  #   end
+  #
+  #   define(:parse_change_and_format_both,
+  #     a: [ parsable, parse, transform { |i| i + 1 }, format ],
+  #     b: [ parsable, parse, transform { |i| i - 1 }, format ],
+  #   ) do |opts|
+  #     opts
+  #   end
+  # end
+  # ```
+  #
+  #     irb> p16.parse_change_and_format_both *%w{ ff 11 }
+  #     => { a: "100", b: "10" }
+  #     irb> p16.parse_change_and_format_both *%w{ gg 11 }
+  #     !> ArgumentError: Invalid value "gg" given for argument :a
+  #     irb> p32.parse_change_and_format_both *%w{ gg 11 }
+  #     => { a: "gh", b: "10" }
+  #
+  # To make it even simpler, you can also use a `Proc`, `Symbol` or
+  # anything else that responds to `#to_proc` for a callback as well.
+  #
+  # ```ruby
+  # class Item
+  #   def initialize foo, bar
+  #     @foo, @bar = foo, bar
+  #   end
+  #   def foo(*args)
+  #     puts "running foo! with #{args.inspect}"
+  #     @foo
+  #   end
+  #   def bar(*args)
+  #     puts "running bar! with #{args.inspect}"
+  #     @bar
+  #   end
+  #   def inspect
+  #     "#<Item @foo=#@foo @bar=#@bar>"
+  #   end
+  # end
+  #
+  # class Example
+  #   include Flexibility
+  #   def initialize tag
+  #     @tag = tag
+  #   end
+  #
+  #   define(:run,
+  #     a: [ :foo, proc { |n,&blk| blk[ @tag, n ] } ],
+  #     b: [ :bar, proc { |n,&blk| blk[ @tag, n ] } ]
+  #   ) do |opts|
+  #     opts
+  #   end
+  # end
+  # ```
+  #
+  #     irb> item = Item.new( "left", "right" )
+  #     irb> ex   = Example.new( "popcorn" )
+  #     irb> ex.run( a: item, b: item ) { |tag, val| puts "running block with tag=#{tag} val=#{val}" ; tag + val }
+  #     running foo! with [:a, {}, #<Item @foo=left @bar=right>]
+  #     running block with tag=popcorn val=left
+  #     running bar! with [:b, {:a=>"popcornleft"}, #<Item @foo=left @bar=right>]
+  #     running block with tag=popcorn val=right
+  #     => { a: "popcornleft", b: "popcornright" }
+  #
+  # Note how, as mentioned earler, we can access the bound block and prior
+  # options within the callback.
+  #
+  # In addition, if you only need a single callback for an argument, you don't
+  # have to wrap it in an array:
+  #
+  # ```ruby
+  # class Example
+  #
+  #   def initialize(min)
+  #     @min = min
+  #   end
+  #
+  #   define(:run,
+  #     foo:  required,
+  #     bar:  validate { |bar| bar >= @min },
+  #     baz:  default { |_,opts| opts[:bar] },
+  #     quux: transform { |val,key| val[key] }
+  #   ) do |opts|
+  #     opts
+  #   end
+  # end
+  # ```
+  #
+  #     irb> ex = Example.new(10)
+  #     irb> ex.run
+  #     !> ArgumentError: Required argument :foo not given
+  #     irb> ex.run 100, 0
+  #     !> ArgumentError: Invalid value 0 given for argument :bar
+  #     irb> ex.run 100, 17, quux: { quux: 5 }
+  #     => { foo: 100, bar: 17, baz: 17, quux: 5 }
+  #
+  # ----
+  #
+  # The method body given to {#define} can receive the block bound to the
+  # method call at runtime using the standard `&` prefix:
+  #
+  # ```ruby
+  # class AmpersandExample
+  #   include Flexibility
+  #
+  #   define(:run) do |&blk|
+  #     (1..4).each(&blk)
+  #   end
+  # end
+  # ```
+  #
+  #     irb> AmpersandExample.new.run { |i| puts i }
+  #     1
+  #     2
+  #     3
+  #     4
+  #     => 1..4
+  #
+  # Note, however, that the `yield` keyword inside the method body won't be able
+  # to access the block bound to the method invocation, as `yield` is lexically
+  # scoped (like a local variable).
+  #
+  # ```ruby
+  # module YieldExample
+  #   def self.create
+  #     Class.new do
+  #       include Flexibility
+  #       define( :run ) do |&blk|
+  #         blk.call :using_block
+  #         yield :using_yield
+  #       end
+  #     end
+  #   end
+  # end
+  # ```
+  #
+  #     irb> klass = YieldExample.create { |x| puts "class creation block got #{x}" }
+  #     irb> instance = klass.new
+  #     irb> instance.run { |x| puts "method invocation block got #{x}" }
+  #     method invocation block got using_block
+  #     class creation block got using_yield
   #
   # ----
   #
