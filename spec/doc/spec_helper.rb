@@ -10,7 +10,7 @@ def puts(msg)
 end
 
 def extract_examples path
-  
+
   extension = path.sub(/^.*\./,'')
 
   describe "#{path} examples" do
@@ -86,7 +86,7 @@ def extract_examples path
 
         new_context = begin
           count = 0
-          lambda do 
+          lambda do
             eval(<<-EVAL)
               module #{block[:description].gsub(/^\W+|\W+$/,'').gsub(/\W+/,'_').upcase!}_#{count += 1 }
                 binding
@@ -111,21 +111,22 @@ def extract_examples path
               context = new_context[]
             end
 
-            actual_result, caught_error = block[:code_blocks][last_run + 1 .. i].inject(nil) do |_,x| 
+            actual_result, actual_error = block[:code_blocks][last_run + 1 .. i].inject(nil) do |_,x|
               STROUT.rewind
               STROUT.truncate 0
               last_run += 1
               begin
                 [ eval( x[:lines].join, context, path, x[:lineno] ), nil ]
-              rescue Exception => e
-                [ nil, "#{e.class}: #{e.message}" ]
+              rescue Exception => actual_error
+                [ nil, actual_error ]
               end
             end
 
-            if code[:error] or caught_error
-              eval(<<-CHECK, binding, path, code[:lineno] )
-                expect( caught_error ).to eq( code[:error] )
-              CHECK
+            if code[:error]
+              error_message = "#{actual_error.class}: #{actual_error.message}" if actual_error
+              eval(%!expect( error_message ).to eq( code[:error] )!, binding, path, code[:lineno] )
+            elsif actual_error
+              raise actual_error
             end
 
             if code[:result]
