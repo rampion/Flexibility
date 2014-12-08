@@ -51,7 +51,7 @@ def extract_examples path
                :test
              elsif comment =~ /^=> /
                :result
-             elsif comment =~ /^!> \w+: /
+             elsif comment =~ /^!> /
                :error
              elsif [ :output, :test ].include? last_mode
                :output
@@ -72,8 +72,7 @@ def extract_examples path
       when :result
         code_blocks.last.merge!( result_lineno: index+1, result: line.sub('=>', '  ') )
       when :error
-        comment =~ /^!> (\w+): (.*)/
-        code_blocks.last.merge!( error_class: $1, error_message: $2.strip )
+        code_blocks.last.merge!( error: comment.sub(/^!> /, '') )
       end
       last_mode = mode
     end
@@ -85,36 +84,52 @@ def extract_examples path
 
       describe block[:description] do
 
-        block[:code_blocks].each_with_index do |code, i|
+        new_context = begin
+          count = 0
+          lambda do 
+            eval(<<-EVAL)
+              module #{block[:description].gsub(/^\W+|\W+$/,'').gsub(/\W+/,'_').upcase!}_#{count += 1 }
+                binding
+              end
+            EVAL
+          end
+        end
 
-          next unless code[:result] or code[:output] or code[:error_class]
+        last_run = -1
+        context = new_context[]
+
+        block[:code_blocks].each_with_index do |code, i|
+          next unless code[:result] or code[:output] or code[:error]
 
           desc = "`#{code[:lines].first.strip}`"
           desc.sub!(/`$/, '...`') if code[:lines].length > 1
 
           it desc do
-            b = eval(<<-EVAL)
-              module #{block[:description].gsub(/^\W+|\W+$/,'').gsub(/\W+/,'_').upcase!}_RESULT_#{i}
-                binding
-              end
-            EVAL
 
-            actual_result = block[:code_blocks][0 .. i].inject(nil) do |_,x| 
+            if last_run >= i
+              last_run = -1
+              context = new_context[]
+            end
+
+            actual_result, caught_error = block[:code_blocks][last_run + 1 .. i].inject(nil) do |_,x| 
               STROUT.rewind
               STROUT.truncate 0
+              last_run += 1
               begin
-                eval( x[:lines].join, b, path, x[:lineno] ) 
+                [ eval( x[:lines].join, context, path, x[:lineno] ), nil ]
               rescue Exception => e
-                raise unless x[:error_class]
-                eval(<<-CHECK, binding, path, x[:lineno] )
-                  expect( e.class.to_s ).to eq(x[:error_class])
-                  expect( e.message ).to eq(x[:error_message])
-                CHECK
+                [ nil, "#{e.class}: #{e.message}" ]
               end
             end
 
+            if code[:error] or caught_error
+              eval(<<-CHECK, binding, path, code[:lineno] )
+                expect( caught_error ).to eq( code[:error] )
+              CHECK
+            end
+
             if code[:result]
-              expected_result = eval( code[:result], b, path, code[:result_lineno] )
+              expected_result = eval( code[:result], context, path, code[:result_lineno] )
               eval(%!expect( actual_result ).to eq( expected_result )!, binding, path, code[:lineno] )
             end
 
